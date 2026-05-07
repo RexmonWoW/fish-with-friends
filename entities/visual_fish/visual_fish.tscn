@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://chmjy2fb5pftc"]
+
+[ext_resource type="Script" uid="uid://jwxt7luudejv" path="res://entities/visual_fish/visual_fish.gd" id="1_juyan"]
+
+[node name="VisualFish" type="Node3D" unique_id=1012193433]
+script = ExtResource("1_juyan")
