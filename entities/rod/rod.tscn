@@ -1,10 +1,13 @@
 [gd_scene format=3 uid="uid://cm8opitxfwnp3"]
 
+[ext_resource type="Script" uid="uid://cj0n5gwpdwf52" path="res://entities/rod/rod.gd" id="1_ws0hn"]
+
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_nkibw"]
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_ws0hn"]
 
 [node name="Rod" type="Node3D" unique_id=2083545492]
+script = ExtResource("1_ws0hn")
 
 [node name="RodModel" type="Node3D" parent="." unique_id=1189408560]
 
