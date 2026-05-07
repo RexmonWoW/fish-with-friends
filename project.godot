@@ -11,9 +11,18 @@ config_version=5
 [application]
 
 config/name="FishWithFriends"
+run/main_scene="uid://dd606gmlukoqh"
 config/features=PackedStringArray("4.6", "Forward Plus")
 boot_splash/show_image=false
 config/icon="res://icon.svg"
+
+[autoload]
+
+EventBus="*uid://cph4lrk3ggwrr"
+AudioManager="*uid://bb5avi2glrqdy"
+SteamManager="*uid://cwqslk58r28is"
+NetworkManager="*uid://b66e6x6lh6vv8"
+RunState="*uid://cabd5bwkcbkh3"
 
 [physics]
 
@@ -22,3 +31,8 @@ config/icon="res://icon.svg"
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+
+[steam]
+
+initialization/app_id=480
+initialization/initialize_on_startup=true
