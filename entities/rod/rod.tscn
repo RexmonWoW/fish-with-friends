@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://cm8opitxfwnp3"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_nkibw"]
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_ws0hn"]
+
+[node name="Rod" type="Node3D" unique_id=2083545492]
+
+[node name="RodModel" type="Node3D" parent="." unique_id=1189408560]
+
+[node name="RodTip" type="Marker3D" parent="." unique_id=1500397157]
+
+[node name="LineCollider" type="Area3D" parent="." unique_id=779349723]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LineCollider" unique_id=1530356603]
+shape = SubResource("CapsuleShape3D_nkibw")
+
+[node name="RodSync" type="MultiplayerSynchronizer" parent="." unique_id=155782073]
+replication_config = SubResource("SceneReplicationConfig_ws0hn")
