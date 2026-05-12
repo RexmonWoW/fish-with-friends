@@ -1,10 +1,17 @@
 [gd_scene format=3 uid="uid://cm8opitxfwnp3"]
 
 [ext_resource type="Script" uid="uid://cj0n5gwpdwf52" path="res://entities/rod/rod.gd" id="1_ws0hn"]
+[ext_resource type="Script" uid="uid://bcm4t1bl5ykvu" path="res://entities/rod/lure_animator.gd" id="2_luranim"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_nkibw"]
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_ws0hn"]
+properties/0/path = NodePath(".:state")
+properties/0/spawn = false
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = false
+properties/1/replication_mode = 1
 
 [node name="Rod" type="Node3D" unique_id=2083545492]
 script = ExtResource("1_ws0hn")
@@ -13,6 +20,9 @@ script = ExtResource("1_ws0hn")
 
 [node name="RodTip" type="Marker3D" parent="." unique_id=1500397157]
 
+[node name="LureAnimator" type="Node3D" parent="." unique_id=-1093120005]
+script = ExtResource("2_luranim")
+
 [node name="LineCollider" type="Area3D" parent="." unique_id=779349723]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="LineCollider" unique_id=1530356603]
@@ -20,3 +30,5 @@ shape = SubResource("CapsuleShape3D_nkibw")
 
 [node name="RodSync" type="MultiplayerSynchronizer" parent="." unique_id=155782073]
 replication_config = SubResource("SceneReplicationConfig_ws0hn")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=627387637]
