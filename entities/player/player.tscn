@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://bojv8eo5itoug"]
+
+[ext_resource type="Script" uid="uid://dk00rfqbqer0i" path="res://entities/player/player.gd" id="1_player"]
+[ext_resource type="Script" uid="uid://g2ff6pqps6vj" path="res://entities/player/equipment_slot.gd" id="2_equipslot"]
+[ext_resource type="PackedScene" uid="uid://cm8opitxfwnp3" path="res://entities/rod/rod.tscn" id="3_sglur"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_player"]
+properties/0/path = NodePath(".:global_position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath("BodyPivot:rotation_degrees")
+properties/1/spawn = false
+properties/1/replication_mode = 1
+
+[node name="Player" type="RigidBody3D" unique_id=1813776746]
+mass = 70.0
+lock_rotation = true
+contact_monitor = true
+max_contacts_reported = 4
+linear_damp = 4.0
+script = ExtResource("1_player")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1454186803]
+shape = SubResource("CapsuleShape3D_player")
+
+[node name="BodyPivot" type="Node3D" parent="." unique_id=1661565583]
+
+[node name="PlayerModel" type="Node3D" parent="BodyPivot" unique_id=437556236]
+
+[node name="AttachPoint_Hand" type="Marker3D" parent="BodyPivot" unique_id=1395674512]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 1.2, -0.5)
+
+[node name="AttachPoint_Back" type="Marker3D" parent="BodyPivot" unique_id=361777988]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, 0.3)
+
+[node name="CameraRig" type="Node3D" parent="." unique_id=1471550640]
+
+[node name="CameraPitch" type="Node3D" parent="CameraRig" unique_id=1413211368]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPitch" unique_id=499632894]
+
+[node name="EquipmentSlot" type="Node" parent="." unique_id=739754793]
+script = ExtResource("2_equipslot")
+rod_scene = ExtResource("3_sglur")
+
+[node name="PlayerSync" type="MultiplayerSynchronizer" parent="." unique_id=1649721202]
+replication_config = SubResource("SceneReplicationConfig_player")

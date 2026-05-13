@@ -9,52 +9,28 @@ enum CastState { IDLE, CHARGING, ANIMATING, WAITING_BITE, REELING }
 
 var state: CastState = CastState.IDLE
 var charge_start_time: float = 0.0
-var current_power: float = 0.0  ## 0.0–1.0, NOT replicated
-var owner_peer_id: int = 1  ## TEMP: hardcoded for solo testing until Player scene exists #TODO fix this when we got actual ids
+var current_power: float = 0.0      ## 0.0–1.0, NOT replicated
+var owner_peer_id: int = 0          ## set by EquipmentSlot on equip
+var player_camera: Camera3D = null  ## set by EquipmentSlot on equip
 
 ## Set by the host when a map is loaded. Passed to WaterValidator.
 var current_map: Node3D = null
 
 
-# ── Local input (Minigame Logic) ──────────────────────────────────────────────
+# ── Local input stubs (Minigame Logic fills these in) ─────────────────────────
 
 func start_charge() -> void:
-	if state != CastState.IDLE:
-		return
-	state = CastState.CHARGING
-	charge_start_time = Time.get_ticks_msec() / 1000.0
-	current_power = 0.0
-	EventBus.cast_charge_started.emit(owner_peer_id)
+	pass
+
+func release_cast() -> void:
+	# Minigame Logic completes this. When ready it should call:
+	#   _request_cast.rpc(player_camera.global_transform.origin,
+	#                     -player_camera.global_transform.basis.z,
+	#                     current_power)
+	pass
 
 
-func release_cast(cam_origin: Vector3, cam_forward: Vector3) -> void:
-	if state != CastState.CHARGING:
-		return
-	_request_cast.rpc(cam_origin, cam_forward, current_power)
-	state = CastState.ANIMATING  # optimistic local state
-
-
-func _process(_delta: float) -> void:
-	# Only run for the local owner of this rod.
-	if owner_peer_id != multiplayer.get_unique_id():
-		return
-
-	if state == CastState.CHARGING:
-		var elapsed := (Time.get_ticks_msec() / 1000.0) - charge_start_time
-		current_power = clampf(elapsed / charge_time_to_full, 0.0, 1.0)
-		EventBus.cast_charge_updated.emit(current_power, owner_peer_id)
-
-	# TODO: replace camera fetch with Player.get_camera() once Player scene exists.
-	if Input.is_action_just_pressed("cast"):
-		start_charge()
-
-	if Input.is_action_just_released("cast"):
-		var cam := get_viewport().get_camera_3d()
-		if cam:
-			release_cast(cam.global_transform.origin, -cam.global_transform.basis.z)
-
-
-# ── RPC 1: Client → Host ──────────────────────────────────────────────────────
+# ── RPC 1: Client → Host ───────────────────────────────────────────────────────
 
 @rpc("any_peer", "call_local", "reliable")
 func _request_cast(cam_origin: Vector3, cam_forward: Vector3, power: float) -> void:
