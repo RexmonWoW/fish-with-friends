@@ -17,20 +17,48 @@ var player_camera: Camera3D = null  ## set by EquipmentSlot on equip
 var current_map: Node3D = null
 
 
-# ── Local input stubs (Minigame Logic fills these in) ─────────────────────────
+# ── Local input (only runs for the rod owner) ─────────────────────────────────
 
 func start_charge() -> void:
-	pass
+	if state != CastState.IDLE:
+		return
+	state = CastState.CHARGING
+	charge_start_time = Time.get_ticks_msec() / 1000.0
+	current_power = 0.0
+	EventBus.cast_charge_started.emit(owner_peer_id)
+
 
 func release_cast() -> void:
-	# Minigame Logic completes this. When ready it should call:
-	#   _request_cast.rpc(player_camera.global_transform.origin,
-	#                     -player_camera.global_transform.basis.z,
-	#                     current_power)
-	pass
+	if state != CastState.CHARGING:
+		return
+	if player_camera == null:
+		push_warning("Rod: release_cast called but player_camera not assigned.")
+		state = CastState.IDLE
+		return
+	var cam_origin := player_camera.global_transform.origin
+	var cam_forward := -player_camera.global_transform.basis.z
+	_request_cast.rpc(cam_origin, cam_forward, current_power)
+	state = CastState.ANIMATING  # optimistic local state
 
 
-# ── RPC 1: Client → Host ───────────────────────────────────────────────────────
+func _process(_delta: float) -> void:
+	# Only run for the local owner of this rod.
+	if owner_peer_id == 0 or owner_peer_id != multiplayer.get_unique_id():
+		return
+
+	if state == CastState.CHARGING:
+		var elapsed := (Time.get_ticks_msec() / 1000.0) - charge_start_time
+		current_power = clampf(elapsed / charge_time_to_full, 0.0, 1.0)
+		EventBus.cast_charge_updated.emit(current_power, owner_peer_id)
+
+	if Input.is_action_just_pressed("cast"):
+		start_charge()
+
+	if Input.is_action_just_released("cast"):
+		release_cast()
+
+
+# ── RPC 1: Client → Host ──────────────────────────────────────────────────────
 
 @rpc("any_peer", "call_local", "reliable")
 func _request_cast(cam_origin: Vector3, cam_forward: Vector3, power: float) -> void:
