@@ -4,13 +4,25 @@ extends RigidBody3D
 ## One player body. Spawned by PlayerSpawner for every peer including the host.
 ## Movement is client-authoritative — each client moves their own body locally.
 ## Host still owns fish spawns, livewell, catches, bite events.
+##
+## Architecture rule (from General): physics chaos is for movement only.
+## Body and camera have SEPARATE orientations — body soft-follows camera yaw,
+## but a shove to the body NEVER affects camera direction, cast aim, or reel input.
 
 var peer_id: int = 0
 
 # Node references — assigned in _ready, used by EquipmentSlot and Minigame Logic.
-@onready var body_pivot: Node3D = $BodyPivot
-@onready var camera_rig: Node3D = $CameraRig
+@onready var body_pivot: Node3D        = $BodyPivot
+@onready var camera_rig: Node3D       = $CameraRig
+@onready var camera_pitch: Node3D     = $CameraRig/CameraPitch
 @onready var equipment_slot: EquipmentSlot = $EquipmentSlot
+
+# ── Tunables ──────────────────────────────────────────────────────────────────
+@export var mouse_sensitivity: float   = 0.002
+@export var body_yaw_follow_speed: float = 8.0
+@export var move_force: float          = 800.0
+@export var max_speed: float           = 5.0
+@export var jump_force: float          = 400.0
 
 
 func _ready() -> void:
@@ -29,12 +41,92 @@ func setup_for_peer(id: int) -> void:
 	# Hand the peer ID to EquipmentSlot so the rod gets the right owner.
 	equipment_slot.setup_for_peer(id)
 
-
-# ── Movement stubs (Minigame Logic implements) ────────────────────────────────
-
-func _local_input_tick() -> void:
-	pass  # TODO: Minigame Logic implements — WASD + mouse capture
+	# Mouse capture for the local player only.
+	if peer_id == multiplayer.get_unique_id():
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
-func _apply_movement_impulse(_direction: Vector3) -> void:
-	pass  # TODO: Minigame Logic implements — applies force to RigidBody3D
+# ── Input ─────────────────────────────────────────────────────────────────────
+
+func _unhandled_input(event: InputEvent) -> void:
+	if peer_id != multiplayer.get_unique_id():
+		return
+
+	# Esc releases mouse; click recaptures.
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		return
+
+	if event is InputEventMouseButton and event.pressed:
+		if Input.get_mouse_mode() == Input.MOUSE_MODE_VISIBLE:
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+			return
+
+	# Camera rotation from mouse delta.
+	# CRITICAL: only camera_rig and camera_pitch rotate here — NEVER body_pivot.
+	if event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
+		camera_rig.rotation.y -= event.relative.x * mouse_sensitivity
+		camera_pitch.rotation.x -= event.relative.y * mouse_sensitivity
+		camera_pitch.rotation.x = clampf(camera_pitch.rotation.x, -PI / 2.0 * 0.95, PI / 2.0 * 0.95)
+
+
+func _physics_process(delta: float) -> void:
+	if peer_id != multiplayer.get_unique_id():
+		return
+
+	_apply_movement_impulse(_get_move_direction(), delta)
+	_soft_follow_body_yaw(delta)
+
+	if Input.is_action_just_pressed("jump") and _is_grounded():
+		apply_central_impulse(Vector3.UP * jump_force)
+
+
+# ── Movement helpers ──────────────────────────────────────────────────────────
+
+func _get_move_direction() -> Vector3:
+	var forward := Input.get_action_strength("move_forward") - Input.get_action_strength("move_back")
+	var strafe  := Input.get_action_strength("move_right")   - Input.get_action_strength("move_left")
+
+	if forward == 0.0 and strafe == 0.0:
+		return Vector3.ZERO
+
+	# Local direction — movement follows camera look, not body orientation.
+	var local_dir := Vector3(strafe, 0.0, -forward).normalized()
+	var world_dir := camera_rig.global_transform.basis * local_dir
+	world_dir.y = 0.0
+	if world_dir.length_squared() > 0.0001:
+		world_dir = world_dir.normalized()
+	return world_dir
+
+
+func _apply_movement_impulse(direction: Vector3, delta: float) -> void:
+	if direction == Vector3.ZERO:
+		return
+
+	apply_central_impulse(direction * move_force * delta)
+
+	# Clamp horizontal speed.
+	var horiz := Vector2(linear_velocity.x, linear_velocity.z)
+	if horiz.length() > max_speed:
+		horiz = horiz.normalized() * max_speed
+		linear_velocity = Vector3(horiz.x, linear_velocity.y, horiz.y)
+
+
+func _soft_follow_body_yaw(delta: float) -> void:
+	# Body yaw lags behind camera — bumps don't affect camera direction.
+	body_pivot.rotation.y = lerp_angle(
+		body_pivot.rotation.y,
+		camera_rig.rotation.y,
+		body_yaw_follow_speed * delta
+	)
+
+
+func _is_grounded() -> bool:
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(
+		global_position,
+		global_position + Vector3.DOWN * 1.0
+	)
+	query.exclude = [self]
+	var result := space.intersect_ray(query)
+	return not result.is_empty()
