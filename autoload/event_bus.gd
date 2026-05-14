@@ -1,24 +1,15 @@
 extends Node
 
-# ── Cast lifecycle ─────────────────────────────────────────────────────────────
+# ── Cast signals ───────────────────────────────────────────────────────────────
 
-## Emitted on all clients when a cast lands on valid water.
-## Listeners: lure animator, BiteEventManager.
+## Emitted on all peers when a cast lands in valid water.
+## Listeners: lure animator (Art & Polish), BiteEventManager (host-only).
 signal cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int)
 
-## Emitted on all clients when a cast is rejected (dry land, out of bounds, etc.)
+## Emitted on all peers when a cast is rejected by the host (dry land, out of range).
+## Listeners: power meter UI reset (Minigame Logic / Art & Polish).
 signal cast_failed(reason: StringName, caster_peer_id: int)
 
-# ── Bite lifecycle ─────────────────────────────────────────────────────────────
-
-## Emitted by BiteEventManager (host only) when a fish bites.
-## Minigame Logic listens to this to trigger the reel minigame.
+## Emitted on all peers when a fish bites a cast line.
+## Listeners: reel minigame trigger (Minigame Logic).
 signal bite_started(fish_data: FishData, caster_peer_id: int)
-
-# ── Cast charge (local-only, emitted by Minigame Logic) ───────────────────────
-
-## Emitted when the local player starts holding the cast button.
-signal cast_charge_started(caster_peer_id: int)
-
-## Emitted every frame while the local player is charging.
-signal cast_charge_updated(power: float, caster_peer_id: int)
