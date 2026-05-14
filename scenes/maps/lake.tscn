@@ -1,0 +1,75 @@
+[gd_scene format=3 uid="uid://lake_placeholder"]
+
+[ext_resource type="Script" path="res://scenes/maps/lake.gd" id="1_lakescript"]
+[ext_resource type="PackedScene" path="res://entities/boat/boat.tscn" id="2_boat"]
+[ext_resource type="PackedScene" path="res://entities/livewell/livewell.tscn" id="3_livewell"]
+[ext_resource type="Script" path="res://systems/bite_event_manager.gd" id="4_bitemanager"]
+[ext_resource type="PackedScene" path="res://entities/fish/fish.tscn" id="5_fish"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_water"]
+size = Vector2(100.0, 100.0)
+
+[sub_resource type="StandardMaterial3D" id="Mat_water"]
+albedo_color = Color(0.15, 0.4, 0.6, 1.0)
+
+[sub_resource type="BoxShape3D" id="Shape_water"]
+size = Vector3(100.0, 0.1, 100.0)
+
+[sub_resource type="Environment" id="Env_lake"]
+background_mode = 2
+sky = SubResource("Sky_lake")
+
+[sub_resource type="Sky" id="Sky_lake"]
+sky_material = SubResource("SkyMat_lake")
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat_lake"]
+
+[node name="Lake" type="Node3D"]
+script = ExtResource("1_lakescript")
+
+[node name="Environment" type="Node3D" parent="."]
+
+[node name="WaterSurface" type="StaticBody3D" parent="Environment"]
+
+[node name="WaterMesh" type="MeshInstance3D" parent="Environment/WaterSurface"]
+mesh = SubResource("PlaneMesh_water")
+surface_material_override/0 = SubResource("Mat_water")
+
+[node name="WaterCollision" type="CollisionShape3D" parent="Environment/WaterSurface"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
+shape = SubResource("Shape_water")
+
+[node name="Sky" type="WorldEnvironment" parent="Environment"]
+environment = SubResource("Env_lake")
+
+[node name="PlayableArea" type="Node3D" parent="."]
+
+[node name="Boat" parent="PlayableArea" instance=ExtResource("2_boat")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+
+[node name="Livewell" parent="PlayableArea" instance=ExtResource("3_livewell")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, -2.0)
+
+[node name="PlayerSpawnPoints" type="Node3D" parent="PlayableArea"]
+
+[node name="Spawn1" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 1, -1)
+
+[node name="Spawn2" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, -1)
+
+[node name="Spawn3" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 1, 1)
+
+[node name="Spawn4" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1)
+
+[node name="BiteEventManager" type="Node" parent="PlayableArea"]
+script = ExtResource("4_bitemanager")
+fish_scene = ExtResource("5_fish")
+
+[node name="Lighting" type="Node3D" parent="."]
+
+[node name="Sun" type="DirectionalLight3D" parent="Lighting"]
+transform = Transform3D(0.866, -0.354, 0.354, 0, 0.707, 0.707, -0.5, -0.612, 0.612, 0, 0, 0)
+shadow_enabled = true

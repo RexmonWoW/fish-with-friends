@@ -1,0 +1,43 @@
+[gd_scene format=3 uid="uid://livewell_placeholder"]
+
+[ext_resource type="Script" path="res://entities/livewell/livewell.gd" id="1_livewellscript"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_livewell"]
+size = Vector3(1.0, 0.5, 0.6)
+
+[sub_resource type="StandardMaterial3D" id="Mat_livewell"]
+albedo_color = Color(0.2, 0.2, 0.2, 1.0)
+
+[sub_resource type="BoxShape3D" id="Shape_interaction"]
+size = Vector3(1.4, 1.0, 1.0)
+
+[node name="Livewell" type="Node3D"]
+script = ExtResource("1_livewellscript")
+
+[node name="LivewellVisual" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_livewell")
+surface_material_override/0 = SubResource("Mat_livewell")
+
+[node name="InteractionZone" type="Area3D" parent="."]
+
+[node name="InteractionShape" type="CollisionShape3D" parent="InteractionZone"]
+shape = SubResource("Shape_interaction")
+
+[node name="FishDisplay" type="Node3D" parent="."]
+
+[node name="Slot1" type="Marker3D" parent="FishDisplay"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0.3, 0)
+
+[node name="Slot2" type="Marker3D" parent="FishDisplay"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.3, 0)
+
+[node name="Slot3" type="Marker3D" parent="FishDisplay"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+
+[node name="Slot4" type="Marker3D" parent="FishDisplay"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0.3, 0)
+
+[node name="Slot5" type="Marker3D" parent="FishDisplay"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.3, 0)
+
+[node name="LivewellSync" type="MultiplayerSynchronizer" parent="."]
