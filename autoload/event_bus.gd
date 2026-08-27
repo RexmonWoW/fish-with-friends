@@ -2,6 +2,14 @@ extends Node
 
 # ── Cast signals ───────────────────────────────────────────────────────────────
 
+## Emitted locally when the rod owner starts charging a cast.
+## Listeners: power meter UI (Art & Polish).
+signal cast_charge_started(caster_peer_id: int)
+
+## Emitted locally every frame while charging, with current power 0.0-1.0.
+## Listeners: power meter UI (Art & Polish).
+signal cast_charge_updated(power: float, caster_peer_id: int)
+
 ## Emitted on all peers when a cast lands in valid water.
 ## Listeners: lure animator (Art & Polish), BiteEventManager (host-only).
 signal cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int)
