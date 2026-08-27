@@ -26,3 +26,9 @@ signal bite_started(fish_data: FishData, caster_peer_id: int)
 ## resolved reel (caught or escaped). Informational -- Rod already resets
 ## itself to IDLE optimistically on the owning client.
 signal reel_finished(success: bool, caster_peer_id: int)
+
+# ── Livewell signals ───────────────────────────────────────────────────────────
+
+## Emitted host-side whenever a Livewell's slots change (add or remove).
+## Listeners: livewell display UI (not built yet).
+signal livewell_updated(livewell: Livewell)

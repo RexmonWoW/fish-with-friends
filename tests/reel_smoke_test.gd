@@ -55,6 +55,20 @@ func _on_local_player_spawned(player: Player) -> void:
 		get_tree().quit(1)
 		return
 
+	var livewell: Livewell = get_tree().get_first_node_in_group("livewell")
+	var caught: CaughtFish = null
+	for slot in livewell.slots:
+		if slot != null:
+			caught = slot
+			break
+	if caught == null:
+		print("FAIL: no fish landed in the livewell after a successful catch")
+		get_tree().quit(1)
+		return
+	print("Livewell slot filled: species=%s size=%.2f value=%d" % [
+		caught.species.species_id, caught.size, caught.final_value
+	])
+
 	print("Second cast (this used to silently no-op)...")
 	rod.start_charge()
 	await get_tree().process_frame

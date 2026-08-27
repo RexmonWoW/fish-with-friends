@@ -76,11 +76,36 @@ func _cancel_pending(caster_peer_id: int) -> void:
 
 
 ## Called by Rod (host-side) once the owning client's local reel minigame
-## has finished. Despawns the fish -- livewell add/throw is a future dispatch.
+## has finished. On success, builds a CaughtFish and adds it to the map's
+## Livewell before despawning the live Fish either way.
 func resolve_reel(caster_peer_id: int, success: bool) -> void:
 	if _active_fish.has(caster_peer_id):
 		var fish: Fish = _active_fish[caster_peer_id]
 		if is_instance_valid(fish):
+			if success:
+				_add_catch_to_livewell(fish, caster_peer_id)
 			fish.queue_free()
 		_active_fish.erase(caster_peer_id)
 	EventBus.reel_finished.emit(success, caster_peer_id)
+
+
+func _add_catch_to_livewell(fish: Fish, caster_peer_id: int) -> void:
+	var livewell := get_tree().get_first_node_in_group("livewell") as Livewell
+	if livewell == null:
+		push_warning("BiteEventManager: no Livewell in scene, catch discarded.")
+		return
+
+	var special_attrs: Array[StringName] = []
+	var caught := FishFactory.create_caught_fish(
+		fish.species,
+		caster_peer_id,
+		"Player %d" % caster_peer_id,  ## TODO: real display name once Steam persona lookup is wired
+		current_map_id,
+		fish.was_perfect,
+		special_attrs,
+		fish.hazards_active,
+		false
+	)
+
+	if livewell.add_fish(caught) == -1:
+		push_warning("BiteEventManager: livewell full, catch discarded (peer %d)." % caster_peer_id)
