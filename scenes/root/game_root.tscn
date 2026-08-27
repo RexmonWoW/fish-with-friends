@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" path="res://scenes/menu/main_menu.tscn" id="2_mainmenu"]
 [ext_resource type="PackedScene" uid="uid://dam5dhwda0gsu" path="res://ui/cast_meter.tscn" id="3_castmeter"]
 [ext_resource type="PackedScene" path="res://ui/reel_minigame.tscn" id="4_reelminigame"]
+[ext_resource type="PackedScene" path="res://ui/livewell_display.tscn" id="5_livewelldisplay"]
 
 [node name="GameRoot" type="Node"]
 
@@ -25,3 +26,5 @@ spawn_limit = 4
 [node name="CastMeter" parent="UILayer" instance=ExtResource("3_castmeter")]
 
 [node name="ReelMinigame" parent="UILayer" instance=ExtResource("4_reelminigame")]
+
+[node name="LivewellDisplay" parent="UILayer" instance=ExtResource("5_livewelldisplay")]

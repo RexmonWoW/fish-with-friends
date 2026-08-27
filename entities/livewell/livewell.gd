@@ -3,9 +3,9 @@ extends Node3D
 
 ## Shared, 5 slots. Host-authoritative state.
 ## Each map places its own Livewell in its PlayableArea.
-## Negotiation UI for a full livewell, throw-overboard interaction, and
-## per-slot visual fish display are still a future dispatch -- this covers
-## the data-layer add/remove that BiteEventManager needs to close the loop.
+## Negotiation UI for a full livewell and per-slot visual fish display are
+## still a future dispatch. Proximity display + throw-overboard (any player
+## can pull any fish to free a slot) are wired via LivewellDisplay UI.
 
 const MAX_SLOTS: int = 5
 
@@ -34,6 +34,10 @@ func _ready() -> void:
 	slots.resize(MAX_SLOTS)
 	_visuals.resize(MAX_SLOTS)
 	add_to_group("livewell")  ## Systems can find any livewell via group lookup
+
+	var zone: Area3D = $InteractionZone
+	zone.body_entered.connect(_on_body_entered)
+	zone.body_exited.connect(_on_body_exited)
 
 
 ## Host-authoritative. Returns the slot index the fish landed in, or -1 if
@@ -64,6 +68,36 @@ func remove_fish(index: int) -> CaughtFish:
 
 func is_full() -> bool:
 	return not slots.has(null)
+
+
+# ── Interaction (throw a fish overboard to free a slot) ────────────────────────
+## GDD: any player can grab any fish and throw it overboard, no confirmation.
+
+func request_remove_fish(index: int) -> void:
+	_request_remove_fish.rpc(index)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_remove_fish(index: int) -> void:
+	if not multiplayer.is_server():
+		return
+	remove_fish(index)
+
+
+# ── Proximity (local-only, drives LivewellDisplay UI) ───────────────────────────
+
+func _on_body_entered(body: Node) -> void:
+	var player := body as Player
+	if player == null or player.peer_id != multiplayer.get_unique_id():
+		return
+	EventBus.livewell_proximity_changed.emit(self, true)
+
+
+func _on_body_exited(body: Node) -> void:
+	var player := body as Player
+	if player == null or player.peer_id != multiplayer.get_unique_id():
+		return
+	EventBus.livewell_proximity_changed.emit(self, false)
 
 
 # ── Visuals ──────────────────────────────────────────────────────────────────

@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/livewell_interaction_smoke_test.gd" id="1_lwtest"]
+
+[node name="LivewellInteractionSmokeTest" type="Node"]
+script = ExtResource("1_lwtest")

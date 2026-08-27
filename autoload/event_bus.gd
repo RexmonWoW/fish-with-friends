@@ -30,5 +30,9 @@ signal reel_finished(success: bool, caster_peer_id: int)
 # ── Livewell signals ───────────────────────────────────────────────────────────
 
 ## Emitted host-side whenever a Livewell's slots change (add or remove).
-## Listeners: livewell display UI (not built yet).
+## Listeners: LivewellDisplay UI.
 signal livewell_updated(livewell: Livewell)
+
+## Emitted locally (per-peer, not networked) when the LOCAL player enters or
+## exits a Livewell's InteractionZone. Listeners: LivewellDisplay UI.
+signal livewell_proximity_changed(livewell: Livewell, in_range: bool)
