@@ -9,18 +9,12 @@ extends Node3D
 
 const MAX_SLOTS: int = 5
 
-## Placeholder capsule size -- swaps for a real model later.
-const VISUAL_RADIUS: float = 0.05
-const VISUAL_LENGTH: float = 0.22
-
-## Rarity (FishData's @export_enum index) -> placeholder tint.
-const RARITY_COLORS: Array[Color] = [
-	Color(0.75, 0.75, 0.75), # Common
-	Color(0.3, 0.8, 0.4),    # Uncommon
-	Color(0.3, 0.5, 0.95),   # Rare
-	Color(0.85, 0.55, 0.15), # Legendary
-	Color(0.9, 0.2, 0.85),   # Mythic
-]
+## Placeholder capsule size range -- swaps for a real model later. Scaled
+## between these by where the fish's rolled size falls in its species'
+## min_size..max_size range.
+const VISUAL_MIN_LENGTH: float = 0.14
+const VISUAL_MAX_LENGTH: float = 0.34
+const VISUAL_RADIUS_RATIO: float = 0.22  # capsule radius as a fraction of its length
 
 var slots: Array = []                ## Array of CaughtFish (or null for empty slots)
 var big_fish_slot: CaughtFish = null ## Reserved slot for big fish event catches
@@ -104,25 +98,43 @@ func _on_body_exited(body: Node) -> void:
 ## Placeholder capsule per slot, parented to that slot's Marker3D. Not
 ## networked yet -- see PROGRESS.md open questions on livewell replication.
 ## Swimming/animated fish is a planned follow-up; this is static placement.
+## Sized by the fish's rolled size relative to its species' min/max, tinted
+## by species (same species always gets the same color) -- just for visual
+## variety until real models exist.
 
 func _spawn_visual(index: int, fish: CaughtFish) -> void:
 	_clear_visual(index)
 
 	var mesh_instance := MeshInstance3D.new()
 	var capsule := CapsuleMesh.new()
-	capsule.radius = VISUAL_RADIUS
-	capsule.height = VISUAL_LENGTH
+	var length := _visual_length_for(fish)
+	capsule.height = length
+	capsule.radius = length * VISUAL_RADIUS_RATIO
 	mesh_instance.mesh = capsule
 	# Capsules stand upright by default; lay it on its side like a resting fish.
 	mesh_instance.rotation.z = PI / 2.0
 
-	var rarity: int = clampi(fish.species.rarity, 0, RARITY_COLORS.size() - 1)
 	var material := StandardMaterial3D.new()
-	material.albedo_color = RARITY_COLORS[rarity]
+	material.albedo_color = _color_for_species(fish.species.species_id)
 	mesh_instance.set_surface_override_material(0, material)
 
 	fish_display.get_child(index).add_child(mesh_instance)
 	_visuals[index] = mesh_instance
+
+
+func _visual_length_for(fish: CaughtFish) -> float:
+	var species := fish.species
+	var size_range := species.max_size - species.min_size
+	var t := 0.5 if size_range <= 0.0 else clampf(
+		(fish.size - species.min_size) / size_range, 0.0, 1.0
+	)
+	return lerpf(VISUAL_MIN_LENGTH, VISUAL_MAX_LENGTH, t)
+
+
+func _color_for_species(species_id: StringName) -> Color:
+	# Deterministic per species -- same species always looks the same.
+	var hue := float(hash(species_id) % 360) / 360.0
+	return Color.from_hsv(hue, 0.6, 0.85)
 
 
 func _clear_visual(index: int) -> void:

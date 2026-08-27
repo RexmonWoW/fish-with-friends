@@ -31,7 +31,22 @@ static func _get_pool_for_map(map_id: StringName) -> Array[FishData]:
 
 
 static func _weighted_pick(pool: Array[FishData]) -> FishData:
-	# TODO: real weighted selection — Minigame Logic chat owns this
+	## Flat weighted-random pick across the whole pool by spawn_weight.
+	## Rarity-tier-aware weighting (roll a tier first, then weight within it,
+	## per spawn_weight's own doc comment) is a further refinement Minigame
+	## Logic still owns -- this is a real random pick, just not tiered yet.
 	if pool.is_empty():
 		return null
-	return pool[0]
+
+	var total_weight := 0.0
+	for species in pool:
+		total_weight += maxf(species.spawn_weight, 0.0)
+	if total_weight <= 0.0:
+		return pool[randi() % pool.size()]
+
+	var roll := randf() * total_weight
+	for species in pool:
+		roll -= maxf(species.spawn_weight, 0.0)
+		if roll <= 0.0:
+			return species
+	return pool[pool.size() - 1]  # float rounding fallback

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="FishData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/fish/fish_data.gd" id="1_fishdata"]
+
+[resource]
+script = ExtResource("1_fishdata")
+species_id = &"largemouth_bass"
+display_name = "Largemouth Bass"
+min_size = 10.0
+max_size = 20.0
+min_weight = 1.5
+max_weight = 6.0
+base_value = 20
+rarity = 1
+valid_locations = Array[StringName]([&"lake"])
+spawn_weight = 0.6
