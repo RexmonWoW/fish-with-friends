@@ -267,6 +267,8 @@ All maps are modular — fixed core, procedural surroundings.
 12. Round timer + day structure
 13. Quota system
 
+Live status for this list lives in PROGRESS.md, not here — this list is the plan, PROGRESS.md is the state.
+
 ---
 
 ## Deferred Until MVP Is Fun
@@ -280,15 +282,9 @@ All maps are modular — fixed core, procedural surroundings.
 
 ---
 
-## Chat Hierarchy
-| Chat | Owns |
-|---|---|
-| **General** | All design decisions, balancing, routing |
-| **Godot Structure** | All architecture decisions, gates all builds |
-| **Networking** | Steam P2P, host/client sync, tangle detection |
-| **Minigame Logic** | Reel, QTE, casting, capsize, big fish event |
-| **Art & Polish** | Toon 3D, audio, UI, cosmetics |
+## Working Convention
+Two lanes, not five chats:
+- **Planning** (design, scope, balancing, decisions) — a regular chat. Decisions that change the design get written into this file.
+- **Build** (implementation) — Claude Code, running in this repo. See CLAUDE.md for how a Claude Code session should operate; see PROGRESS.md for current status, next steps, and open questions.
 
-General makes all design decisions.
-Godot Structure makes all architecture decisions and gates the other chats.
-Nothing gets built without going through this hierarchy.
+Nothing here gates commits anymore — CLAUDE.md and PROGRESS.md are the handoff between the two lanes.

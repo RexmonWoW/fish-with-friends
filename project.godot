@@ -24,6 +24,10 @@ SteamManager="*uid://cwqslk58r28is"
 NetworkManager="*uid://b66e6x6lh6vv8"
 RunState="*uid://cabd5bwkcbkh3"
 
+[global_group]
+
+water_surface=""
+
 [input]
 
 cast={
