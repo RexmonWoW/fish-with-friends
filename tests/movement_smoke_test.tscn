@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dqx1w2movetest"]
+
+[ext_resource type="Script" path="res://tests/movement_smoke_test.gd" id="1_movetest"]
+
+[node name="MovementSmokeTest" type="Node"]
+script = ExtResource("1_movetest")

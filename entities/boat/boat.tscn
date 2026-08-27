@@ -11,37 +11,14 @@ albedo_color = Color(0.4, 0.3, 0.2, 1.0)
 [sub_resource type="BoxShape3D" id="Shape_hull"]
 size = Vector3(4.0, 0.3, 6.0)
 
-[sub_resource type="StandardMaterial3D" id="Mat_walls"]
-albedo_color = Color(0.32, 0.24, 0.16, 1.0)
-
-[sub_resource type="BoxMesh" id="BoxMesh_wallfront"]
-size = Vector3(4.0, 1.0, 0.1)
-
-[sub_resource type="BoxShape3D" id="Shape_wallfront"]
-size = Vector3(4.0, 1.0, 0.1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_wallback"]
-size = Vector3(4.0, 1.0, 0.1)
-
-[sub_resource type="BoxShape3D" id="Shape_wallback"]
-size = Vector3(4.0, 1.0, 0.1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_wallleft"]
-size = Vector3(0.1, 1.0, 6.0)
-
-[sub_resource type="BoxShape3D" id="Shape_wallleft"]
-size = Vector3(0.1, 1.0, 6.0)
-
-[sub_resource type="BoxMesh" id="BoxMesh_wallright"]
-size = Vector3(0.1, 1.0, 6.0)
-
-[sub_resource type="BoxShape3D" id="Shape_wallright"]
-size = Vector3(0.1, 1.0, 6.0)
+[sub_resource type="PhysicsMaterial" id="PhysMat_lowfriction"]
+friction = 0.05
 
 [node name="Boat" type="Node3D"]
 script = ExtResource("1_boatscript")
 
 [node name="Hull" type="StaticBody3D" parent="."]
+physics_material_override = SubResource("PhysMat_lowfriction")
 
 [node name="HullMesh" type="MeshInstance3D" parent="Hull"]
 mesh = SubResource("BoxMesh_hull")
@@ -49,44 +26,6 @@ surface_material_override/0 = SubResource("Mat_hull")
 
 [node name="HullCollision" type="CollisionShape3D" parent="Hull"]
 shape = SubResource("Shape_hull")
-
-[node name="Walls" type="StaticBody3D" parent="."]
-
-[node name="WallFrontMesh" type="MeshInstance3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, -3.0)
-mesh = SubResource("BoxMesh_wallfront")
-surface_material_override/0 = SubResource("Mat_walls")
-
-[node name="WallFrontCollision" type="CollisionShape3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, -3.0)
-shape = SubResource("Shape_wallfront")
-
-[node name="WallBackMesh" type="MeshInstance3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, 3.0)
-mesh = SubResource("BoxMesh_wallback")
-surface_material_override/0 = SubResource("Mat_walls")
-
-[node name="WallBackCollision" type="CollisionShape3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, 3.0)
-shape = SubResource("Shape_wallback")
-
-[node name="WallLeftMesh" type="MeshInstance3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.0, 0.65, 0)
-mesh = SubResource("BoxMesh_wallleft")
-surface_material_override/0 = SubResource("Mat_walls")
-
-[node name="WallLeftCollision" type="CollisionShape3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.0, 0.65, 0)
-shape = SubResource("Shape_wallleft")
-
-[node name="WallRightMesh" type="MeshInstance3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0, 0.65, 0)
-mesh = SubResource("BoxMesh_wallright")
-surface_material_override/0 = SubResource("Mat_walls")
-
-[node name="WallRightCollision" type="CollisionShape3D" parent="Walls"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0, 0.65, 0)
-shape = SubResource("Shape_wallright")
 
 [node name="CapsizeCorners" type="Node3D" parent="."]
 

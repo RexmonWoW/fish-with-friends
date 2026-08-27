@@ -8,6 +8,9 @@
 radius = 0.4
 height = 1.8
 
+[sub_resource type="PhysicsMaterial" id="PhysMat_player_lowfriction"]
+friction = 0.05
+
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_player"]
 properties/0/path = NodePath(".:global_position")
 properties/0/spawn = true
@@ -17,11 +20,12 @@ properties/1/spawn = false
 properties/1/replication_mode = 1
 
 [node name="Player" type="RigidBody3D" unique_id=1813776746]
+physics_material_override = SubResource("PhysMat_player_lowfriction")
 mass = 70.0
 lock_rotation = true
 contact_monitor = true
 max_contacts_reported = 4
-linear_damp = 4.0
+linear_damp = 2.0
 script = ExtResource("1_player")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1454186803]

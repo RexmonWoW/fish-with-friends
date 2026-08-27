@@ -20,7 +20,7 @@ var peer_id: int = 0
 # ── Tunables ──────────────────────────────────────────────────────────────────
 @export var mouse_sensitivity: float   = 0.002
 @export var body_yaw_follow_speed: float = 8.0
-@export var move_force: float          = 800.0
+@export var move_force: float          = 1600.0
 @export var max_speed: float           = 5.0
 @export var jump_force: float          = 400.0
 
