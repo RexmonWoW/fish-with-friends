@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dqx1w2reeltest"]
+
+[ext_resource type="Script" path="res://tests/reel_smoke_test.gd" id="1_reeltest"]
+
+[node name="ReelSmokeTest" type="Node"]
+script = ExtResource("1_reeltest")

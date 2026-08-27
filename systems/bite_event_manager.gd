@@ -18,10 +18,14 @@ var current_map_id: StringName = &""
 ## In-flight timers keyed by caster_peer_id so re-casts cancel the previous bite.
 var _pending: Dictionary = {}  # int → Timer
 
+## Fish currently on someone's line, keyed by caster_peer_id.
+var _active_fish: Dictionary = {}  # int → Fish
+
 
 func _ready() -> void:
 	if not multiplayer.is_server():
 		return
+	add_to_group("bite_event_manager")  ## Rod looks this up to resolve a reel.
 	EventBus.cast_landed.connect(_on_cast_landed)
 
 
@@ -56,8 +60,10 @@ func _fire_bite(endpoint: Vector3, caster_peer_id: int) -> void:
 	var fish: Fish = fish_scene.instantiate() as Fish
 	fish.species = fish_data
 	fish.bound_to_peer_id = caster_peer_id
-	fish.global_position = endpoint
+	# Must be inside the tree before global_position resolves against a parent.
 	get_tree().root.add_child(fish)
+	fish.global_position = endpoint
+	_active_fish[caster_peer_id] = fish
 
 	EventBus.bite_started.emit(fish_data, caster_peer_id)
 
@@ -67,3 +73,14 @@ func _cancel_pending(caster_peer_id: int) -> void:
 		var t: Timer = _pending[caster_peer_id]
 		t.queue_free()
 		_pending.erase(caster_peer_id)
+
+
+## Called by Rod (host-side) once the owning client's local reel minigame
+## has finished. Despawns the fish -- livewell add/throw is a future dispatch.
+func resolve_reel(caster_peer_id: int, success: bool) -> void:
+	if _active_fish.has(caster_peer_id):
+		var fish: Fish = _active_fish[caster_peer_id]
+		if is_instance_valid(fish):
+			fish.queue_free()
+		_active_fish.erase(caster_peer_id)
+	EventBus.reel_finished.emit(success, caster_peer_id)

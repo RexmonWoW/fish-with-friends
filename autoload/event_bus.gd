@@ -21,3 +21,8 @@ signal cast_failed(reason: StringName, caster_peer_id: int)
 ## Emitted on all peers when a fish bites a cast line.
 ## Listeners: reel minigame trigger (Minigame Logic).
 signal bite_started(fish_data: FishData, caster_peer_id: int)
+
+## Emitted host-side once BiteEventManager has despawned the fish for a
+## resolved reel (caught or escaped). Informational -- Rod already resets
+## itself to IDLE optimistically on the owning client.
+signal reel_finished(success: bool, caster_peer_id: int)

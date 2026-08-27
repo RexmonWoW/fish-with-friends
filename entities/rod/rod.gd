@@ -104,3 +104,27 @@ func _cast_landed(endpoint: Vector3, lure_flight_seconds: float) -> void:
 func _cast_failed(reason: StringName) -> void:
 	state = CastState.IDLE
 	EventBus.cast_failed.emit(reason, owner_peer_id)
+
+
+# ── RPC 4: Client → Host, local reel minigame resolved ─────────────────────────
+## Reel itself runs entirely client-side (ReelMinigame). This just tells the
+## host to despawn the Fish it's holding for this rod. The owning client
+## already reset its own state to IDLE optimistically before calling this.
+
+func request_reel_resolution(success: bool) -> void:
+	_request_reel_resolution.rpc(success)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_reel_resolution(success: bool) -> void:
+	if not multiplayer.is_server():
+		return
+
+	var sender := multiplayer.get_remote_sender_id()
+	var effective_sender := 1 if sender == 0 else sender
+	if effective_sender != owner_peer_id:
+		return  # Wrong rod — reject silently.
+
+	var bite_manager: Node = get_tree().get_first_node_in_group("bite_event_manager")
+	if bite_manager:
+		bite_manager.resolve_reel(owner_peer_id, success)

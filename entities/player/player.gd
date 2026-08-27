@@ -77,7 +77,11 @@ func _physics_process(delta: float) -> void:
 	_apply_movement_impulse(_get_move_direction(), delta)
 	_soft_follow_body_yaw(delta)
 
-	if Input.is_action_just_pressed("jump") and _is_grounded():
+	# "jump" doubles as the reel-up input (see ReelMinigame) -- don't also
+	# launch the player into the air while reeling.
+	var rod := equipment_slot.equipped_item as Rod
+	var is_reeling := rod != null and rod.state == Rod.CastState.REELING
+	if not is_reeling and Input.is_action_just_pressed("jump") and _is_grounded():
 		apply_central_impulse(Vector3.UP * jump_force)
 
 
