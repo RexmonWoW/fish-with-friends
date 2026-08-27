@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dqx1w2casttest"]
+
+[ext_resource type="Script" path="res://tests/cast_smoke_test.gd" id="1_casttest"]
+
+[node name="CastSmokeTest" type="Node"]
+script = ExtResource("1_casttest")
