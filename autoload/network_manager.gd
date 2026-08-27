@@ -61,6 +61,11 @@ func _get_world() -> Node:
 	return get_tree().root.get_node("GameRoot/NetworkRoot/World")
 
 
+## Public so Rod/EquipmentSlot can resolve the active map for water validation.
+func get_current_map() -> Map:
+	return _get_current_map()
+
+
 func _get_current_map() -> Map:
 	var world := _get_world()
 	if world == null or world.get_child_count() == 0:
