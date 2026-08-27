@@ -2,6 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://bojv8eo5itoug" path="res://entities/player/player.tscn" id="1_playerscene"]
 [ext_resource type="PackedScene" path="res://scenes/menu/main_menu.tscn" id="2_mainmenu"]
+[ext_resource type="PackedScene" uid="uid://dam5dhwda0gsu" path="res://ui/cast_meter.tscn" id="3_castmeter"]
 
 [node name="GameRoot" type="Node"]
 
@@ -19,3 +20,5 @@ spawn_limit = 4
 [node name="UILayer" type="CanvasLayer" parent="."]
 
 [node name="MainMenu" parent="UILayer" instance=ExtResource("2_mainmenu")]
+
+[node name="CastMeter" parent="UILayer" instance=ExtResource("3_castmeter")]
