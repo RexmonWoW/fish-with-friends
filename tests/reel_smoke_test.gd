@@ -69,6 +69,14 @@ func _on_local_player_spawned(player: Player) -> void:
 		caught.species.species_id, caught.size, caught.final_value
 	])
 
+	var filled_index := livewell.slots.find(caught)
+	var slot_marker := livewell.fish_display.get_child(filled_index)
+	if slot_marker.get_child_count() == 0:
+		print("FAIL: no visual spawned under slot marker %d" % filled_index)
+		get_tree().quit(1)
+		return
+	print("Visual spawned under slot %d: %s" % [filled_index, slot_marker.get_child(0)])
+
 	print("Second cast (this used to silently no-op)...")
 	rod.start_charge()
 	await get_tree().process_frame
