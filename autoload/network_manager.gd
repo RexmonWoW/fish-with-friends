@@ -32,6 +32,14 @@ func _ready() -> void:
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 
+	# MultiplayerSpawner needs spawn_function set on EVERY peer, not just the
+	# host -- when the host's spawn() call replicates to a client, the client
+	# runs this SAME callback locally to reconstruct the node. This used to
+	# only get wired up in host-only code paths, so a joining client's own
+	# spawner had nothing to run and every spawn (including their own
+	# player) silently failed to construct on their machine.
+	_get_spawner()
+
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
@@ -156,7 +164,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 
 
 func _on_connected_to_server() -> void:
-	pass  ## Client connected — host replicates map and spawns our Player.
+	pass  ## Client connected — host pushes the map RPC and spawns our Player
+	## (replicated automatically once _get_spawner() has run, see _ready()).
 
 
 func _on_connection_failed() -> void:
