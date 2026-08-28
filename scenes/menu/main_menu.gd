@@ -85,6 +85,17 @@ func _on_spawned_local_player(_player: Player) -> void:
 	hide()
 
 
+## Called by RunEndScreen after "Return to Menu" disconnects the run --
+## brings the menu back to a fresh, interactable state rather than however
+## it was left mid-run (buttons disabled, a stale status line).
+func reset_and_show() -> void:
+	status_label.text = ""
+	_hosting_with_invite = false
+	_set_buttons_disabled(false)
+	join_button.disabled = true
+	show()
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 func _set_buttons_disabled(disabled: bool) -> void:
