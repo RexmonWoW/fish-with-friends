@@ -40,10 +40,6 @@ func equip_rod() -> void:
 	# Give the rod its owner so RPCs validate correctly.
 	rod.owner_peer_id = _owner_peer_id
 
-	# Water validation needs the active map (null is fine — WaterValidator
-	# allows all casts until a map is loaded).
-	rod.current_map = NetworkManager.get_current_map()
-
 	# Give the rod a direct camera reference so it doesn't need a node-path lookup.
 	# TODO: Minigame Logic may prefer a setter pattern — clean up if needed.
 	var cam: Camera3D = get_parent().get_node_or_null("CameraRig/CameraPitch/Camera3D")

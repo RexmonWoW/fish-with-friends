@@ -184,13 +184,9 @@ func _reposition_local_player() -> void:
 	var spawn := _get_spawn_point_for_index(my_index)
 	if spawn != null:
 		player.global_transform = spawn.global_transform
-
-	# Rod.current_map was captured at equip time back in the lobby (null,
-	# since the lobby isn't a Map) -- refresh it now a real map is loaded,
-	# or water validation stays in its permissive no-map fallback forever.
-	var rod := player.equipment_slot.equipped_item as Rod
-	if rod:
-		rod.current_map = get_current_map()
+	# Rod no longer caches current_map -- it asks NetworkManager fresh at
+	# validation time (host-only, see Rod._validate_and_land_cast), so there's
+	# nothing to refresh here for the new map.
 
 
 # ── Lobby event handlers ───────────────────────────────────────────────────────

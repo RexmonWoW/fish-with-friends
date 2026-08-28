@@ -33,7 +33,7 @@ func _on_local_player_spawned(player: Player) -> void:
 	await get_tree().process_frame
 	print("Local player spawned at ", player.global_position)
 	var rod: Rod = player.equipment_slot.equipped_item as Rod
-	print("Rod equipped: ", rod, " current_map: ", rod.current_map if rod else null)
+	print("Rod equipped: ", rod)
 
 	rod.start_charge()
 	await get_tree().create_timer(0.75).timeout

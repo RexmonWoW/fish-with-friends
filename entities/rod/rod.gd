@@ -13,9 +13,6 @@ var current_power: float = 0.0      ## 0.0–1.0, NOT replicated
 var owner_peer_id: int = 0          ## set by EquipmentSlot on equip
 var player_camera: Camera3D = null  ## set by EquipmentSlot on equip
 
-## Set by the host when a map is loaded. Passed to WaterValidator.
-var current_map: Node3D = null
-
 ## True while the local player is standing in a Livewell's InteractionZone --
 ## blocks starting a cast so pressing 1-5 to throw a fish overboard (or just
 ## looking around near the livewell) doesn't also fire the rod.
@@ -90,6 +87,13 @@ func _request_cast(cam_origin: Vector3, cam_forward: Vector3, power: float) -> v
 
 
 # ── Host-only validation (not an RPC) ─────────────────────────────────────────
+## Resolves the active map fresh via NetworkManager on every call rather than
+## caching a reference on the node -- a cached copy needs actively refreshing
+## whenever the loaded map changes (e.g. lobby -> lake at round start), and
+## since validation only ever runs here (host-side), a live lookup costs
+## nothing and can't go stale. A per-node cache (the previous design) also
+## can't be kept correct for peers other than whichever one is "local" to
+## the machine doing the refreshing -- see PROGRESS.md.
 
 func _validate_and_land_cast(cam_origin: Vector3, cam_forward: Vector3, power: float) -> void:
 	# Cast distance is horizontal reach, not full 3D look-direction distance --
@@ -108,7 +112,7 @@ func _validate_and_land_cast(cam_origin: Vector3, cam_forward: Vector3, power: f
 	# Snap to the actual water surface height, not the aim point's height --
 	# otherwise the lure/bobber ends up floating at eye level instead of
 	# sitting on the water.
-	var water_point = WaterValidator.find_water_point(aim_point, current_map)
+	var water_point = WaterValidator.find_water_point(aim_point, NetworkManager.get_current_map())
 	if water_point == null:
 		_cast_failed.rpc(&"invalid_water")
 		return
