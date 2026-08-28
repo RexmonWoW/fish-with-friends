@@ -14,8 +14,11 @@ var _line_mesh: MeshInstance3D = null
 var _active_tween: Tween = null
 var _is_out: bool = false  ## true from cast_landed until Rod.state returns to IDLE
 
-# Tunable apex height as a fraction of horizontal distance.
-const APEX_FRACTION: float = 0.3
+# Tunable apex height as a fraction of horizontal distance. Was 0.3, which
+# combined with the too-high rod tip (see player.tscn AttachPoint_Hand fix)
+# made casts look like they launched straight up rather than out over the
+# water -- 0.12 gives a flatter, more cast-like arc for typical distances.
+const APEX_FRACTION: float = 0.12
 
 
 func _ready() -> void:

@@ -1,9 +1,9 @@
 class_name BiteEventManager
 extends Node
 
-## Host-only. Owns the bite event lifecycle.
+## Host-authoritative. Owns the bite event lifecycle.
 ## Listens for cast_landed, waits flight_seconds + bite_delay,
-## spawns a Fish entity, emits bite_started.
+## spawns a Fish entity, broadcasts bite_started to every peer.
 ## Minigame Logic owns the reel trigger — this script stops at the signal.
 
 const BITE_DELAY: float = 2.0  # placeholder — real roll belongs to Minigame Logic
@@ -65,6 +65,13 @@ func _fire_bite(endpoint: Vector3, caster_peer_id: int) -> void:
 	fish.global_position = endpoint
 	_active_fish[caster_peer_id] = fish
 
+	# Broadcast, not a local emit -- otherwise only the host ever sees their
+	# own bite_started, and a joining client's ReelMinigame never appears.
+	_notify_bite.rpc(fish_data, caster_peer_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_bite(fish_data: FishData, caster_peer_id: int) -> void:
 	EventBus.bite_started.emit(fish_data, caster_peer_id)
 
 
@@ -88,6 +95,11 @@ func resolve_reel(caster_peer_id: int, success: bool, was_perfect: bool) -> void
 				_add_catch_to_livewell(fish, caster_peer_id)
 			fish.queue_free()
 		_active_fish.erase(caster_peer_id)
+	_notify_reel_finished.rpc(success, caster_peer_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_reel_finished(success: bool, caster_peer_id: int) -> void:
 	EventBus.reel_finished.emit(success, caster_peer_id)
 
 

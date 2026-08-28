@@ -47,6 +47,18 @@ func join_lobby(lobby_id: int) -> void:
 		push_error("NetworkManager: SteamMultiplayerPeer.create_client failed: %d" % err)
 		return
 	multiplayer.multiplayer_peer = peer
+	_allow_resource_rpcs()
+
+
+## Fish data (FishData species, CaughtFish catches) needs to travel over RPC
+## so bites/livewell contents actually reach clients, not just the host --
+## SceneMultiplayer refuses to decode Object/Resource arguments by default.
+## Safe to allow here: lobbies are Steam-friends-only P2P (GDD), and the
+## resources involved are plain @export data with no side-effecting code.
+func _allow_resource_rpcs() -> void:
+	var scene_multiplayer := multiplayer as SceneMultiplayer
+	if scene_multiplayer:
+		scene_multiplayer.allow_object_decoding = true
 
 
 func disconnect_from_lobby() -> void:
@@ -102,6 +114,7 @@ func _on_lobby_created(lobby_id: int) -> void:
 		push_error("NetworkManager: SteamMultiplayerPeer.create_host failed: %d" % err)
 		return
 	multiplayer.multiplayer_peer = peer
+	_allow_resource_rpcs()
 
 	_get_spawner()
 

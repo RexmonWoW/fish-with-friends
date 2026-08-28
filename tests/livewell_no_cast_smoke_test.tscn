@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/livewell_no_cast_smoke_test.gd" id="1_nocasttest"]
+
+[node name="LivewellNoCastSmokeTest" type="Node"]
+script = ExtResource("1_nocasttest")

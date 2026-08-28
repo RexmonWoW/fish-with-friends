@@ -34,16 +34,24 @@ func _ready() -> void:
 	zone.body_exited.connect(_on_body_exited)
 
 
-## Host-authoritative. Returns the slot index the fish landed in, or -1 if
-## every slot is full (caller decides what to do -- MVP just discards it).
+## Host-authoritative: host picks the slot, then broadcasts the actual
+## mutation so every peer's own copy of this Livewell (slots array +
+## visuals) ends up the same, not just the host's. Returns the slot index
+## the fish landed in, or -1 if every slot is full (caller decides what to
+## do -- MVP just discards it).
 func add_fish(fish: CaughtFish) -> int:
 	for i in range(MAX_SLOTS):
 		if slots[i] == null:
-			slots[i] = fish
-			_spawn_visual(i, fish)
-			EventBus.livewell_updated.emit(self)
+			_apply_add.rpc(i, fish)
 			return i
 	return -1
+
+
+@rpc("authority", "call_local", "reliable")
+func _apply_add(index: int, fish: CaughtFish) -> void:
+	slots[index] = fish
+	_spawn_visual(index, fish)
+	EventBus.livewell_updated.emit(self)
 
 
 ## Host-authoritative. Removes and returns the fish at index (throw overboard
@@ -54,10 +62,15 @@ func remove_fish(index: int) -> CaughtFish:
 		return null
 	var fish: CaughtFish = slots[index]
 	if fish != null:
-		slots[index] = null
-		_clear_visual(index)
-		EventBus.livewell_updated.emit(self)
+		_apply_remove.rpc(index)
 	return fish
+
+
+@rpc("authority", "call_local", "reliable")
+func _apply_remove(index: int) -> void:
+	slots[index] = null
+	_clear_visual(index)
+	EventBus.livewell_updated.emit(self)
 
 
 func is_full() -> bool:
@@ -95,8 +108,8 @@ func _on_body_exited(body: Node) -> void:
 
 
 # ── Visuals ──────────────────────────────────────────────────────────────────
-## Placeholder capsule per slot, parented to that slot's Marker3D. Not
-## networked yet -- see PROGRESS.md open questions on livewell replication.
+## Placeholder capsule per slot, parented to that slot's Marker3D -- spawned
+## via _apply_add/_apply_remove above so every peer gets the same visual.
 ## Swimming/animated fish is a planned follow-up; this is static placement.
 ## Sized by the fish's rolled size relative to its species' min/max, tinted
 ## by species (same species always gets the same color) -- just for visual

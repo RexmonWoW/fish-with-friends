@@ -16,11 +16,24 @@ var player_camera: Camera3D = null  ## set by EquipmentSlot on equip
 ## Set by the host when a map is loaded. Passed to WaterValidator.
 var current_map: Node3D = null
 
+## True while the local player is standing in a Livewell's InteractionZone --
+## blocks starting a cast so pressing 1-5 to throw a fish overboard (or just
+## looking around near the livewell) doesn't also fire the rod.
+var _near_livewell: bool = false
+
+
+func _ready() -> void:
+	EventBus.livewell_proximity_changed.connect(_on_livewell_proximity_changed)
+
+
+func _on_livewell_proximity_changed(_livewell: Livewell, in_range: bool) -> void:
+	_near_livewell = in_range
+
 
 # ── Local input (only runs for the rod owner) ─────────────────────────────────
 
 func start_charge() -> void:
-	if state != CastState.IDLE:
+	if state != CastState.IDLE or _near_livewell:
 		return
 	state = CastState.CHARGING
 	charge_start_time = Time.get_ticks_msec() / 1000.0
