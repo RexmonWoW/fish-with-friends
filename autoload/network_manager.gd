@@ -9,17 +9,24 @@ signal peer_player_spawned(peer_id: int, player: Player)
 signal peer_player_despawned(peer_id: int)
 signal run_ended(reason: String)
 
-# ── Map registry ───────────────────────────────────────────────────────────────
+# ── Scene registry ─────────────────────────────────────────────────────────────
 ## Lazy-loaded paths — no preload so a missing file never causes a parse error.
 ## Art and Polish drops lake.tscn at this path and it loads automatically.
+## "lobby" is the bare-bones pre-round space, not a fishing Map -- it and
+## every real map share the same load/spawn-point machinery below (see
+## _get_spawn_point_for_index), just not the Map.gd contract (no
+## Livewell/Boat/water_surface requirement for the lobby).
 const MAP_PATHS: Dictionary = {
 	&"lake": "res://scenes/maps/lake.tscn",
+	&"lobby": "res://scenes/lobby/lobby.tscn",
 }
 
 # ── State ──────────────────────────────────────────────────────────────────────
 var spawned_players: Dictionary = {}  ## peer_id (int) → Player node
 
 var _player_spawner: MultiplayerSpawner = null
+var _current_scene_id: StringName = &""  ## whatever _load_map last loaded
+var _round_started: bool = false
 
 
 func _ready() -> void:
@@ -104,6 +111,18 @@ func _load_map(map_id: StringName) -> void:
 	var scene: PackedScene = load(path)
 	var instance := scene.instantiate()
 	_get_world().add_child(instance)
+	_current_scene_id = map_id
+
+
+## Removes whatever's currently loaded in World (lobby or a map), freeing it
+## synchronously (not just queue_free -- the next _load_map needs
+## get_child(0) to be the NEW scene immediately, not the old one still
+## waiting to be cleaned up at end of frame).
+func _clear_world() -> void:
+	var world := _get_world()
+	for child in world.get_children():
+		world.remove_child(child)
+		child.queue_free()
 
 
 # ── Map replication to clients ─────────────────────────────────────────────────
@@ -111,6 +130,67 @@ func _load_map(map_id: StringName) -> void:
 @rpc("authority", "call_local", "reliable")
 func _load_map_on_client(map_id: StringName) -> void:
 	_load_map(map_id)
+
+
+# ── Round start (lobby's StartTrigger -> lake) ──────────────────────────────────
+## Bare-bones version of GDD's "dock to ready up": any player walking into
+## the lobby's StartTrigger asks the host to start the round; the host
+## decides (once, guarded by _round_started) and broadcasts the actual
+## scene swap. Each peer then repositions ONLY its own local player --
+## global_position is client-authoritative per player (PlayerSync), so the
+## host can't just move someone else's player and have it stick.
+
+func request_start_round() -> void:
+	_request_start_round.rpc()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_start_round() -> void:
+	if not multiplayer.is_server():
+		return
+	if _round_started:
+		return
+	_round_started = true
+	_do_start_round.rpc()
+
+
+@rpc("authority", "call_local", "reliable")
+func _do_start_round() -> void:
+	# This RPC is reached from the lobby's StartTrigger body_entered signal,
+	# which fires during a physics callback -- removing a CollisionObject
+	# (the lobby's floor/trigger) synchronously from there isn't allowed.
+	# Deferring the whole sequence keeps clear->load->reposition ordered
+	# correctly relative to each other while running safely outside that
+	# callback.
+	_do_start_round_deferred.call_deferred()
+
+
+func _do_start_round_deferred() -> void:
+	_clear_world()
+	_load_map(&"lake")
+	_reposition_local_player()
+
+
+func _reposition_local_player() -> void:
+	var my_id := multiplayer.get_unique_id()
+	if not spawned_players.has(my_id):
+		return
+
+	var sorted_ids := spawned_players.keys()
+	sorted_ids.sort()
+	var my_index: int = sorted_ids.find(my_id)
+
+	var player: Player = spawned_players[my_id]
+	var spawn := _get_spawn_point_for_index(my_index)
+	if spawn != null:
+		player.global_transform = spawn.global_transform
+
+	# Rod.current_map was captured at equip time back in the lobby (null,
+	# since the lobby isn't a Map) -- refresh it now a real map is loaded,
+	# or water validation stays in its permissive no-map fallback forever.
+	var rod := player.equipment_slot.equipped_item as Rod
+	if rod:
+		rod.current_map = get_current_map()
 
 
 # ── Lobby event handlers ───────────────────────────────────────────────────────
@@ -125,12 +205,14 @@ func _on_lobby_created(lobby_id: int) -> void:
 	_allow_resource_rpcs()
 
 	_get_spawner()
+	_round_started = false
 
 	# Wait one frame so multiplayer.get_unique_id() returns 1 (host) reliably.
 	await get_tree().process_frame
 
-	# Load map BEFORE spawning — spawn points must exist first.
-	_load_map(&"lake")
+	# Load the lobby BEFORE spawning — spawn points must exist first. The
+	# round (loading the lake) starts later, via the lobby's StartTrigger.
+	_load_map(&"lobby")
 
 	_spawn_player_for_peer(multiplayer.get_unique_id())
 
@@ -145,10 +227,12 @@ func _on_peer_connected(peer_id: int) -> void:
 	if not multiplayer.is_server():
 		return
 
-	# Tell the joining peer which map to load.
-	var current_map := _get_current_map()
-	if current_map != null:
-		_load_map_on_client.rpc_id(peer_id, current_map.map_id)
+	# Tell the joining peer which scene to load -- whatever's actually
+	# current (lobby, or the lake if they're joining mid-round). Reading
+	# this off _current_scene_id rather than _get_current_map().map_id
+	# since the lobby isn't a Map and has no map_id.
+	if _current_scene_id != &"":
+		_load_map_on_client.rpc_id(peer_id, _current_scene_id)
 
 	# Catch the newly-connected peer up on everyone already spawned (the
 	# host, plus any other clients who joined earlier) -- our own spawn
@@ -223,16 +307,27 @@ func _spawn_player(peer_id: int) -> Node:
 	player.name = str(peer_id)
 	player.setup_for_peer.call_deferred(peer_id)
 
-	# Position at the map's spawn point if a map is loaded.
-	var map := _get_current_map()
-	if map != null:
-		var index := spawned_players.size()  # 0 for first player, 1 for second, etc.
-		var spawn: Marker3D = map.get_spawn_point(index)
-		if spawn != null:
-			# Deferred so the node enters the tree before transform is set.
-			player.set_deferred("global_transform", spawn.global_transform)
+	# Position at whatever's loaded (lobby or a map)'s spawn point, if anything is.
+	var index := spawned_players.size()  # 0 for first player, 1 for second, etc.
+	var spawn := _get_spawn_point_for_index(index)
+	if spawn != null:
+		# Deferred so the node enters the tree before transform is set.
+		player.set_deferred("global_transform", spawn.global_transform)
 
 	return player
+
+
+## Works for the lobby or a real Map -- both expose get_spawn_point(index),
+## just not through a shared base class (the lobby deliberately isn't a
+## Map, since none of Map's fishing-specific contract applies there).
+func _get_spawn_point_for_index(index: int) -> Marker3D:
+	var world := _get_world()
+	if world == null or world.get_child_count() == 0:
+		return null
+	var scene_root := world.get_child(0)
+	if not scene_root.has_method("get_spawn_point"):
+		return null
+	return scene_root.call("get_spawn_point", index) as Marker3D
 
 
 func _spawn_player_for_peer(peer_id: int) -> void:

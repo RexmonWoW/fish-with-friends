@@ -20,6 +20,20 @@ func _on_local_player_spawned(player: Player) -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
+	# Players now land in the lobby first (bare-bones lobby); skip straight
+	# to the lake for this test rather than walking into the StartTrigger.
+	NetworkManager.request_start_round()
+	var scene_waited := 0.0
+	while NetworkManager._current_scene_id != &"lake" and scene_waited < 3.0:
+		await get_tree().process_frame
+		scene_waited += get_process_delta_time()
+	if NetworkManager._current_scene_id != &"lake":
+		print("FAIL: never reached the lake")
+		get_tree().quit(1)
+		return
+	await get_tree().process_frame
+	await get_tree().process_frame
+
 	var rod: Rod = player.equipment_slot.equipped_item as Rod
 	var reel = get_tree().root.get_node("GameRoot/UILayer/ReelMinigame")
 	var livewell: Livewell = get_tree().get_first_node_in_group("livewell")
