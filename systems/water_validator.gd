@@ -24,12 +24,28 @@ static func find_water_point(aim_pos: Vector3, current_map: Node3D) -> Variant:
 	query.collide_with_areas = false
 	query.collide_with_bodies = true
 
-	var result := space_state.intersect_ray(query)
-	if result.is_empty():
+	# A teammate standing at the landing spot shouldn't be able to block a
+	# cast from reaching the real water beneath/around them -- without this,
+	# the ray hits their RigidBody3D first, which isn't in "water_surface",
+	# so the cast gets silently rejected even though the water underneath is
+	# perfectly valid. Re-cast past any Player body the ray hits (bounded,
+	# so a genuine obstruction -- boat hull, dock -- still rejects normally)
+	# instead of treating a player's body as "not water."
+	var excluded: Array[RID] = []
+	for _attempt in range(4):
+		query.exclude = excluded
+		var result := space_state.intersect_ray(query)
+		if result.is_empty():
+			return null
+
+		var collider := result.get("collider") as Node
+		if collider == null:
+			return null
+		if collider.is_in_group("water_surface"):
+			return result.position as Vector3
+		if collider is Player:
+			excluded.append(result.get("rid") as RID)
+			continue
 		return null
 
-	var collider := result.get("collider") as Node
-	if collider == null or not collider.is_in_group("water_surface"):
-		return null
-
-	return result.position as Vector3
+	return null

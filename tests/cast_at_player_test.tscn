@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/cast_at_player_test.gd" id="1_castatplayer"]
+
+[node name="CastAtPlayerTest" type="Node"]
+script = ExtResource("1_castatplayer")
