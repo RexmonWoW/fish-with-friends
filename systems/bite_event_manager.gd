@@ -113,7 +113,7 @@ func _add_catch_to_livewell(fish: Fish, caster_peer_id: int) -> void:
 	var caught := FishFactory.create_caught_fish(
 		fish.species,
 		caster_peer_id,
-		"Player %d" % caster_peer_id,  ## TODO: real display name once Steam persona lookup is wired
+		SteamManager.get_display_name_for_peer(caster_peer_id),
 		current_map_id,
 		fish.was_perfect,
 		special_attrs,

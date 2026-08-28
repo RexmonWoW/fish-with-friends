@@ -58,6 +58,33 @@ func leave_lobby() -> void:
 	is_host = false
 
 
+## Resolves a Godot multiplayer peer_id to the player's real Steam display
+## name. peer_id is NOT a Steam ID -- SteamMultiplayerPeer assigns its own
+## (the host is always forced to 1 per Godot's MultiplayerAPI contract) and
+## keeps its own internal mapping back to the real SteamID64, retrieved via
+## get_steam_id_for_peer_id(). Falls back to a generic label if Steam data
+## isn't available for some reason.
+func get_display_name_for_peer(peer_id: int) -> String:
+	if peer_id == multiplayer.get_unique_id():
+		var own_name := Steam.getPersonaName()
+		if not own_name.is_empty():
+			return own_name
+
+	var mp_peer := multiplayer.multiplayer_peer as SteamMultiplayerPeer
+	if mp_peer == null:
+		return "Player %d" % peer_id
+
+	var steam_id: int = mp_peer.get_steam_id_for_peer_id(peer_id)
+	if steam_id == 0:
+		return "Player %d" % peer_id
+
+	var friend_name: String = Steam.getFriendPersonaName(steam_id)
+	if friend_name.is_empty():
+		return "Player %d" % peer_id
+
+	return friend_name
+
+
 # ── Steam callbacks ────────────────────────────────────────────────────────────
 
 func _on_lobby_created(result: int, lobby_id: int) -> void:
