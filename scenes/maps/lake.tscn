@@ -67,10 +67,10 @@ script = ExtResource("6_tanglemgr")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0.5, -1.8)
 
 [node name="SpawnPoint2" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 1.2, 0.5, -1.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.5, -1.8)
 
 [node name="SpawnPoint3" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1.2, 0.5, 1.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0.5, 1.8)
 
 [node name="SpawnPoint4" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.2, 0.5, 1.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.5, 1.8)
