@@ -114,11 +114,19 @@ func _process(_delta: float) -> void:
 	if rod.state == Rod.CastState.IDLE:
 		_is_out = false
 		hide()
+		_set_line_collider_active(rod, false)
 		return
 
 	var rod_tip := rod.get_node("RodTip") as Marker3D
 	if rod_tip:
 		_update_line(rod_tip.global_position, global_position)
+		# Deliberately NOT gated to the rod's owner (unlike input handling) --
+		# this must update identically for every peer's local mirror of this
+		# rod, since tangle detection runs host-side against whichever line
+		# collider exists in the HOST's own copy of the scene. An owner-gate
+		# here would silently disable tangling for every non-host player's
+		# line, the same class of bug the water-validation regression was.
+		_update_line_collider(rod_tip.global_position, global_position)
 
 
 func _update_line(from_pos: Vector3, to_pos: Vector3) -> void:
@@ -128,3 +136,42 @@ func _update_line(from_pos: Vector3, to_pos: Vector3) -> void:
 	immediate.surface_add_vertex(_line_mesh.to_local(from_pos))
 	immediate.surface_add_vertex(_line_mesh.to_local(to_pos))
 	immediate.surface_end()
+
+
+## Keeps Rod/LineCollider (an Area3D) spanning the actual line so tangle
+## detection (two different players' colliders overlapping) reflects where
+## the line really is, not a fixed idle shape sitting at the rod's origin.
+func _update_line_collider(from_pos: Vector3, to_pos: Vector3) -> void:
+	var rod := get_parent() as Rod
+	if rod == null:
+		return
+	var collider := rod.get_node_or_null("LineCollider") as Area3D
+	if collider == null:
+		return
+
+	var diff := to_pos - from_pos
+	var length := diff.length()
+	if length < 0.05:
+		_set_line_collider_active(rod, false)
+		return
+	_set_line_collider_active(rod, true)
+
+	var shape_node := collider.get_node("CollisionShape3D") as CollisionShape3D
+	var capsule := shape_node.shape as CapsuleShape3D
+	capsule.height = length
+	capsule.radius = 0.05
+
+	# Orient so local Y (CapsuleShape3D's long axis) points along the line.
+	var y_axis := diff.normalized()
+	var reference := Vector3.RIGHT if absf(y_axis.dot(Vector3.RIGHT)) < 0.9 else Vector3.FORWARD
+	var x_axis := y_axis.cross(reference).normalized()
+	var z_axis := x_axis.cross(y_axis).normalized()
+	collider.global_transform = Transform3D(Basis(x_axis, y_axis, z_axis), (from_pos + to_pos) * 0.5)
+
+
+func _set_line_collider_active(rod: Rod, active: bool) -> void:
+	var collider := rod.get_node_or_null("LineCollider") as Area3D
+	if collider == null:
+		return
+	collider.monitoring = active
+	collider.monitorable = active

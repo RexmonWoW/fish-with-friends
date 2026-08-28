@@ -21,10 +21,41 @@ var _near_livewell: bool = false
 
 func _ready() -> void:
 	EventBus.livewell_proximity_changed.connect(_on_livewell_proximity_changed)
+	EventBus.tangle_resolved.connect(_on_tangle_resolved)
+
+	# Not owner-gated -- detection must fire for every peer's local mirror of
+	# every rod (same reasoning as LureAnimator's line-collider tracking).
+	# Only the HOST's own detection actually does anything (guarded inside).
+	var line_collider := get_node("LineCollider") as Area3D
+	line_collider.area_entered.connect(_on_line_area_entered)
 
 
 func _on_livewell_proximity_changed(_livewell: Livewell, in_range: bool) -> void:
 	_near_livewell = in_range
+
+
+## Fires once per rod whose LineCollider newly overlaps another rod's --
+## i.e. twice per actual tangle (each rod detects the other). TangleManager
+## dedupes so only the first report starts anything.
+func _on_line_area_entered(other_area: Area3D) -> void:
+	if not multiplayer.is_server():
+		return
+	var other_rod := other_area.get_parent() as Rod
+	if other_rod == null or other_rod == self:
+		return
+	if other_rod.owner_peer_id == owner_peer_id:
+		return
+	if state != CastState.WAITING_BITE or other_rod.state != CastState.WAITING_BITE:
+		return
+	var tangle_manager: Node = get_tree().get_first_node_in_group("tangle_manager")
+	if tangle_manager:
+		tangle_manager.start_tangle(owner_peer_id, other_rod.owner_peer_id)
+
+
+func _on_tangle_resolved(_winner_peer_id: int, loser_peer_id: int) -> void:
+	if loser_peer_id != owner_peer_id:
+		return
+	state = CastState.IDLE  # line snapped -- LureAnimator polls state and hides itself
 
 
 # ── Local input (only runs for the rod owner) ─────────────────────────────────

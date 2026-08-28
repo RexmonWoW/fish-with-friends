@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" path="res://entities/boat/boat.tscn" id="3_boat"]
 [ext_resource type="Script" path="res://systems/bite_event_manager.gd" id="4_bitemgr"]
 [ext_resource type="PackedScene" path="res://entities/fish/fish.tscn" id="5_fishscene"]
+[ext_resource type="Script" path="res://systems/tangle_manager.gd" id="6_tanglemgr"]
 
 [sub_resource type="Environment" id="Environment_lake"]
 background_mode = 1
@@ -56,6 +57,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
 [node name="BiteEventManager" type="Node" parent="PlayableArea"]
 script = ExtResource("4_bitemgr")
 fish_scene = ExtResource("5_fishscene")
+
+[node name="TangleManager" type="Node" parent="PlayableArea"]
+script = ExtResource("6_tanglemgr")
 
 [node name="PlayerSpawnPoints" type="Node3D" parent="PlayableArea"]
 

@@ -36,3 +36,16 @@ signal livewell_updated(livewell: Livewell)
 ## Emitted locally (per-peer, not networked) when the LOCAL player enters or
 ## exits a Livewell's InteractionZone. Listeners: LivewellDisplay UI.
 signal livewell_proximity_changed(livewell: Livewell, in_range: bool)
+
+# ── Line tangling signals ───────────────────────────────────────────────────────
+## Host-authoritative (TangleManager), broadcast to every peer.
+
+## Two different players' lines crossed while both were WAITING_BITE.
+signal tangle_started(peer_a: int, peer_b: int)
+
+## Tug-of-war rope moved (mash from either side). Positive favors peer_a.
+signal tangle_rope_updated(peer_a: int, peer_b: int, rope: float)
+
+## Tangle resolved -- winner keeps their cast (no state change needed),
+## loser's line snaps (Rod listens and resets itself to IDLE).
+signal tangle_resolved(winner_peer_id: int, loser_peer_id: int)

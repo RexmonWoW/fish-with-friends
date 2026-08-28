@@ -82,6 +82,20 @@ func _cancel_pending(caster_peer_id: int) -> void:
 		_pending.erase(caster_peer_id)
 
 
+## Called by TangleManager (host-side) when a tangle-loser's line snaps --
+## cancels their pending bite timer and despawns any fish already on their
+## line. A tangle can currently only start while both rods are WAITING_BITE
+## (see Rod._on_line_area_entered), so an active fish shouldn't normally
+## coexist with one, but cheap to clean up either way rather than assume.
+func cancel_pending_bite(peer_id: int) -> void:
+	_cancel_pending(peer_id)
+	if _active_fish.has(peer_id):
+		var fish: Fish = _active_fish[peer_id]
+		if is_instance_valid(fish):
+			fish.queue_free()
+		_active_fish.erase(peer_id)
+
+
 ## Called by Rod (host-side) once the owning client's local reel minigame
 ## has finished. On success, builds a CaughtFish and adds it to the map's
 ## Livewell before despawning the live Fish either way. was_perfect (zero
