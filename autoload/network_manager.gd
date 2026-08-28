@@ -176,7 +176,18 @@ func _on_server_disconnected() -> void:
 	run_ended.emit("host_disconnected")
 
 
-# ── Spawn helpers (host-only) ──────────────────────────────────────────────────
+# ── Spawn helpers ────────────────────────────────────────────────────────────
+## _spawn_player_for_peer (triggering .spawn()) is host-only -- only the
+## authority can originate a spawn. But the bookkeeping below (populating
+## spawned_players, emitting peer_player_spawned/spawned_local_player) runs
+## on EVERY peer, via the spawner's own "spawned" signal, which fires both
+## for the local .spawn() call AND for every peer that receives it via
+## replication. It used to live inline in _spawn_player_for_peer, which is
+## itself only ever called from host-guarded code -- so a joining client's
+## own spawned_players stayed empty forever (breaking anything that looked
+## up NetworkManager.spawned_players, e.g. ReelMinigame) and
+## spawned_local_player never fired for them (so MainMenu never hid, even
+## though their Player node existed and worked underneath).
 
 func _get_spawner() -> void:
 	if _player_spawner != null:
@@ -188,6 +199,7 @@ func _get_spawner() -> void:
 		push_error("NetworkManager: could not find PlayerSpawner node.")
 		return
 	_player_spawner.spawn_function = Callable(self, "_spawn_player")
+	_player_spawner.spawned.connect(_on_player_node_spawned)
 
 
 func _spawn_player(peer_id: int) -> Node:
@@ -219,6 +231,31 @@ func _spawn_player_for_peer(peer_id: int) -> void:
 		push_error("NetworkManager: spawner returned null for peer %d" % peer_id)
 		return
 
+	# Confirmed empirically (not just assumed) that MultiplayerSpawner's
+	# "spawned" signal does NOT fire for the peer that itself calls .spawn()
+	# -- only its return value carries the node. So the spawning peer (the
+	# host, always -- only the host ever calls this) registers directly here;
+	# _on_player_node_spawned below covers every OTHER peer, who never call
+	# .spawn() themselves and only learn about it via that signal once the
+	# spawn replicates to them.
+	_register_spawned_player(peer_id, player)
+
+
+## Fires on every peer that RECEIVES a spawn via replication (i.e. everyone
+## except whoever originated the .spawn() call -- see note above).
+func _on_player_node_spawned(node: Node) -> void:
+	var player := node as Player
+	if player == null:
+		return
+	# player.peer_id isn't set yet (setup_for_peer is deferred) -- the node
+	# name is, and is always the peer id (see _spawn_player above).
+	var peer_id := int(node.name)
+	if spawned_players.has(peer_id):
+		return  # already registered directly by _spawn_player_for_peer
+	_register_spawned_player(peer_id, player)
+
+
+func _register_spawned_player(peer_id: int, player: Player) -> void:
 	spawned_players[peer_id] = player
 	peer_player_spawned.emit(peer_id, player)
 
