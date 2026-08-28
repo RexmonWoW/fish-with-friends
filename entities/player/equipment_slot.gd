@@ -30,8 +30,11 @@ func equip_rod() -> void:
 		push_error("EquipmentSlot: rod_scene did not produce a Rod node.")
 		return
 
-	# Parent to hand attachment point.
-	var hand: Marker3D = get_parent().get_node("BodyPivot/AttachPoint_Hand")
+	# Parent to hand attachment point. Camera-relative (not BodyPivot) so the
+	# held rod tracks the camera rigidly -- BodyPivot only soft-follows
+	# camera yaw with a lag (so physics bumps don't yank the view), which
+	# made a held rod + its line visibly swing/lag on every turn.
+	var hand: Marker3D = get_parent().get_node("CameraRig/CameraPitch/AttachPoint_Hand")
 	hand.add_child(rod)
 
 	# Give the rod its owner so RPCs validate correctly.

@@ -63,7 +63,7 @@ func _on_local_player_spawned(player: Player) -> void:
 	reel._start_qte()
 	var correct_key := InputEventKey.new()
 	correct_key.pressed = true
-	correct_key.keycode = reel._qte_key
+	correct_key.keycode = reel._qte_keys[0]
 	Input.parse_input_event(correct_key)
 	await get_tree().process_frame
 

@@ -7,12 +7,26 @@
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_ws0hn"]
 
+[sub_resource type="CylinderMesh" id="CylinderMesh_rodshaft"]
+top_radius = 0.012
+bottom_radius = 0.022
+height = 1.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_rodshaft"]
+albedo_color = Color(0.35, 0.22, 0.1, 1.0)
+
 [node name="Rod" type="Node3D"]
 script = ExtResource("1_ws0hn")
 
 [node name="RodModel" type="Node3D" parent="."]
 
+[node name="RodShaft" type="MeshInstance3D" parent="RodModel"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.5)
+mesh = SubResource("CylinderMesh_rodshaft")
+surface_material_override/0 = SubResource("Mat_rodshaft")
+
 [node name="RodTip" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.0)
 
 [node name="LureAnimator" type="Node3D" parent="."]
 script = ExtResource("2_luranim")

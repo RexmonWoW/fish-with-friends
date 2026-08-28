@@ -35,9 +35,6 @@ shape = SubResource("CapsuleShape3D_player")
 
 [node name="PlayerModel" type="Node3D" parent="BodyPivot" unique_id=437556236]
 
-[node name="AttachPoint_Hand" type="Marker3D" parent="BodyPivot" unique_id=1395674512]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.2, -0.5)
-
 [node name="AttachPoint_Back" type="Marker3D" parent="BodyPivot" unique_id=361777988]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0.3)
 
@@ -46,6 +43,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0.3)
 [node name="CameraPitch" type="Node3D" parent="CameraRig" unique_id=1413211368]
 
 [node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPitch" unique_id=499632894]
+
+[node name="AttachPoint_Hand" type="Marker3D" parent="CameraRig/CameraPitch" unique_id=1395674512]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25, -0.25, -0.35)
 
 [node name="EquipmentSlot" type="Node" parent="." unique_id=739754793]
 script = ExtResource("2_equipslot")

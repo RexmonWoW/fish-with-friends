@@ -34,14 +34,16 @@ const QTE_WINDOW: float = 1.1          ## seconds to react
 const QTE_FISH_BOLT_SPEED: float = 2.5 ## fish speed multiplier while a QTE is active
 const MAX_MISSES: int = 3
 
-const QTE_KEYS: Array[Key] = [KEY_SPACE, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]
-const QTE_LABELS := {
-	KEY_SPACE: "SPACE",
-	KEY_UP: "↑",
-	KEY_DOWN: "↓",
-	KEY_LEFT: "←",
-	KEY_RIGHT: "→",
-}
+## Each prompt accepts either key -- WASD is what most players reach for
+## instinctively (it's otherwise unused during REELING since movement is
+## locked while a cast is out), arrows still work too.
+const QTE_PROMPTS: Array[Dictionary] = [
+	{"keys": [KEY_SPACE], "label": "SPACE"},
+	{"keys": [KEY_UP, KEY_W], "label": "W"},
+	{"keys": [KEY_DOWN, KEY_S], "label": "S"},
+	{"keys": [KEY_LEFT, KEY_A], "label": "A"},
+	{"keys": [KEY_RIGHT, KEY_D], "label": "D"},
+]
 
 var _rod: Rod = null
 var _active: bool = false
@@ -56,7 +58,7 @@ var _progress: float = 0.5
 
 var _qte_active: bool = false
 var _qte_timer: float = 0.0
-var _qte_key: Key = KEY_SPACE
+var _qte_keys: Array = [KEY_SPACE]
 var _qte_next_in: float = 0.0
 var _miss_count: int = 0
 
@@ -226,8 +228,9 @@ func _update_qte(delta: float) -> void:
 func _start_qte() -> void:
 	_qte_active = true
 	_qte_timer = QTE_WINDOW
-	_qte_key = QTE_KEYS[randi() % QTE_KEYS.size()]
-	_qte_label.text = QTE_LABELS[_qte_key]
+	var prompt: Dictionary = QTE_PROMPTS[randi() % QTE_PROMPTS.size()]
+	_qte_keys = prompt["keys"]
+	_qte_label.text = prompt["label"]
 	_qte_label.show()
 	# "The fish runs" -- bolt toward a fresh random spot at higher speed
 	# while the prompt is up (see _update_fish's QTE_FISH_BOLT_SPEED).
@@ -263,7 +266,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not _active or not _qte_active:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
-		if (event as InputEventKey).keycode == _qte_key:
+		if (event as InputEventKey).keycode in _qte_keys:
 			_on_qte_succeeded()
 
 
