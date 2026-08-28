@@ -63,6 +63,7 @@ func join_lobby(lobby_id: int) -> void:
 		return
 	multiplayer.multiplayer_peer = peer
 	_allow_resource_rpcs()
+	RunState.reset_for_new_run()
 
 
 ## Fish data (FishData species, CaughtFish catches) needs to travel over RPC
@@ -169,6 +170,36 @@ func _do_start_round_deferred() -> void:
 	_clear_world()
 	_load_map(&"lake")
 	_reposition_local_player()
+	RunState.start_round()
+
+
+# ── Round end -> back to lobby (RunState.ROUNDS_PER_DAY loop) ───────────────────
+## Mirrors _do_start_round/_do_start_round_deferred above, just the opposite
+## direction. Host-only trigger (called from RunState._end_round once its
+## timer runs out), unlike _request_start_round which starts from a player
+## action -- no "already in progress" guard needed since RunState itself is
+## the sole caller and only calls this once per round boundary.
+
+func return_to_lobby_between_rounds() -> void:
+	if not multiplayer.is_server():
+		return
+	_broadcast_return_to_lobby.rpc()
+
+
+@rpc("authority", "call_local", "reliable")
+func _broadcast_return_to_lobby() -> void:
+	_return_to_lobby_deferred.call_deferred()
+
+
+func _return_to_lobby_deferred() -> void:
+	# Reset the start-round guard so the lobby's StartTrigger can fire again
+	# for the next round (it's a one-shot latch by design, meant to survive
+	# multiple players walking into the trigger at once -- see
+	# _request_start_round -- not multiple rounds in a row).
+	_round_started = false
+	_clear_world()
+	_load_map(&"lobby")
+	_reposition_local_player()
 
 
 func _reposition_local_player() -> void:
@@ -202,6 +233,7 @@ func _on_lobby_created(lobby_id: int) -> void:
 
 	_get_spawner()
 	_round_started = false
+	RunState.reset_for_new_run()
 
 	# Wait one frame so multiplayer.get_unique_id() returns 1 (host) reliably.
 	await get_tree().process_frame

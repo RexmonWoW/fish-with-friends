@@ -1,11 +1,135 @@
 extends Node
 
+## Host-authoritative day/round/quota state for the run. Same broadcast shape
+## as the rest of the codebase (host computes, broadcasts the result via a
+## reliable "authority" RPC so every peer's local copy matches) -- see
+## Livewell/TangleManager/BiteEventManager for the same pattern.
+##
+## GDD: 2 rounds = 1 day, 5-min rounds, money quota due every 2 rounds
+## (cumulative across days, never resets), run ends on a missed quota.
+## GDD doesn't give an exact base quota or day-over-day growth curve --
+## BASE_QUOTA and QUOTA_GROWTH_PER_DAY below are placeholders pending real
+## balancing from the planning chat (see PROGRESS.md Open Questions).
+## Fish are "sold" (converted to money) only at end of day, matching
+## CaughtFish's own doc comment -- the livewell is shared across both
+## rounds of a day, not cleared between them.
 
-# Called when the node enters the scene tree for the first time.
-func _ready() -> void:
-	pass # Replace with function body.
+signal round_started(round_number: int, day_number: int, duration_seconds: float)
+signal round_ended(round_number: int, day_number: int)
+signal day_summary(day_number: int, earned: int, total_money: int, quota: int, passed: bool)
+signal run_over(final_day: int, final_money: int)
+
+const ROUND_DURATION_SECONDS: float = 300.0  ## GDD: 5 min boat round
+const ROUNDS_PER_DAY: int = 2
+
+## PLACEHOLDER -- GDD gives the player-count multiplier table but not a base
+## value or growth curve. Flagged in PROGRESS.md for real balancing.
+const BASE_QUOTA: int = 100
+const QUOTA_GROWTH_PER_DAY: float = 1.5
+
+const PLAYER_COUNT_MULTIPLIER: Dictionary = {1: 1.0, 2: 1.6, 3: 2.1, 4: 2.5}
+
+var day_number: int = 1
+var round_number: int = 1  ## 1 or 2, within the current day
+var total_money_earned: int = 0  ## cumulative across the whole run, never resets mid-run
+var current_quota: int = 0
+
+var _time_remaining: float = 0.0
+var _round_active: bool = false  ## host-only: is the round timer actually ticking
 
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
-	pass
+	if not _round_active or not multiplayer.is_server():
+		return
+	_time_remaining -= delta
+	if _time_remaining <= 0.0:
+		_round_active = false
+		_end_round()
+
+
+## Called by NetworkManager whenever a NEW run starts (host_lobby or joining
+## a lobby) so a previous run's state doesn't leak into the next one.
+func reset_for_new_run() -> void:
+	day_number = 1
+	round_number = 1
+	total_money_earned = 0
+	current_quota = _compute_quota(1)
+	_round_active = false
+
+
+## Host-only. Called once the lake finishes loading for a round.
+func start_round() -> void:
+	if not multiplayer.is_server():
+		return
+	_time_remaining = ROUND_DURATION_SECONDS
+	_round_active = true
+	_notify_round_started.rpc(round_number, day_number, ROUND_DURATION_SECONDS, current_quota)
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_round_started(r: int, d: int, duration: float, quota: int) -> void:
+	round_number = r
+	day_number = d
+	current_quota = quota
+	round_started.emit(r, d, duration)
+
+
+func _end_round() -> void:
+	_notify_round_ended.rpc(round_number, day_number)
+
+	if round_number < ROUNDS_PER_DAY:
+		round_number += 1
+		NetworkManager.return_to_lobby_between_rounds()
+		return
+
+	# Day complete -- sell everything in the livewell(s), tally against quota.
+	var earned := _sell_all_livewells()
+	total_money_earned += earned
+	var passed := total_money_earned >= current_quota
+	var finished_day := day_number
+
+	_notify_day_summary.rpc(finished_day, earned, total_money_earned, current_quota, passed)
+
+	if passed:
+		day_number += 1
+		round_number = 1
+		current_quota = _compute_quota(day_number)
+		NetworkManager.return_to_lobby_between_rounds()
+	else:
+		_notify_run_over.rpc(finished_day, total_money_earned)
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_round_ended(r: int, d: int) -> void:
+	round_ended.emit(r, d)
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_day_summary(d: int, earned: int, total: int, quota: int, passed: bool) -> void:
+	total_money_earned = total
+	day_summary.emit(d, earned, total, quota, passed)
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_run_over(final_day: int, final_money: int) -> void:
+	run_over.emit(final_day, final_money)
+
+
+func _sell_all_livewells() -> int:
+	var earned := 0
+	for livewell_node in get_tree().get_nodes_in_group("livewell"):
+		var livewell := livewell_node as Livewell
+		if livewell == null:
+			continue
+		for i in range(Livewell.MAX_SLOTS):
+			var fish := livewell.remove_fish(i)
+			if fish != null:
+				earned += fish.final_value
+	return earned
+
+
+func _compute_quota(day: int) -> int:
+	var player_count := clampi(NetworkManager.spawned_players.size(), 1, 4)
+	var multiplier: float = PLAYER_COUNT_MULTIPLIER.get(player_count, 1.0)
+	var day_scaled := float(BASE_QUOTA) * pow(QUOTA_GROWTH_PER_DAY, day - 1)
+	return int(round(day_scaled * multiplier))
