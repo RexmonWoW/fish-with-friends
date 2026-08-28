@@ -41,9 +41,23 @@ func setup_for_peer(id: int) -> void:
 	# Hand the peer ID to EquipmentSlot so the rod gets the right owner.
 	equipment_slot.setup_for_peer(id)
 
+	_tint_body_for_peer(id)
+
 	# Mouse capture for the local player only.
 	if peer_id == multiplayer.get_unique_id():
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+
+## Deterministic per-peer color (same trick as Livewell's per-species tint)
+## so players are actually distinguishable from each other, not just visible.
+func _tint_body_for_peer(id: int) -> void:
+	var body_mesh := body_pivot.get_node_or_null("PlayerModel/BodyMesh") as MeshInstance3D
+	if body_mesh == null:
+		return
+	var hue := float(hash(id) % 360) / 360.0
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color.from_hsv(hue, 0.55, 0.85)
+	body_mesh.set_surface_override_material(0, material)
 
 
 # ── Input ─────────────────────────────────────────────────────────────────────
