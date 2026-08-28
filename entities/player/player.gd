@@ -15,6 +15,7 @@ var peer_id: int = 0
 @onready var body_pivot: Node3D        = $BodyPivot
 @onready var camera_rig: Node3D       = $CameraRig
 @onready var camera_pitch: Node3D     = $CameraRig/CameraPitch
+@onready var camera: Camera3D         = $CameraRig/CameraPitch/Camera3D
 @onready var equipment_slot: EquipmentSlot = $EquipmentSlot
 
 # ── Tunables ──────────────────────────────────────────────────────────────────
@@ -43,9 +44,15 @@ func setup_for_peer(id: int) -> void:
 
 	_tint_body_for_peer(id)
 
-	# Mouse capture for the local player only.
+	# Local player only: capture the mouse and activate THIS player's camera.
+	# Nothing ever made a camera "current" before -- harmless with one
+	# player (Godot defaults the sole Camera3D to current), but with two+
+	# players every machine has multiple Camera3D nodes and Godot picks
+	# whichever activated first (the host's) for every viewport, which is
+	# exactly "both machines see through player one's camera."
 	if peer_id == multiplayer.get_unique_id():
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+		camera.current = true
 
 
 ## Deterministic per-peer color (same trick as Livewell's per-species tint)
