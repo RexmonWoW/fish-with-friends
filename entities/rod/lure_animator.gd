@@ -13,6 +13,7 @@ var _lure_mesh: MeshInstance3D = null
 var _line_mesh: MeshInstance3D = null
 var _active_tween: Tween = null
 var _is_out: bool = false  ## true from cast_landed until Rod.state returns to IDLE
+var _anchor_position: Vector3 = Vector3.ZERO  ## world-space landing spot, once landed
 
 # Tunable apex height as a fraction of horizontal distance. Was 0.3, which
 # combined with the too-high rod tip (see player.tscn AttachPoint_Hand fix)
@@ -92,6 +93,7 @@ func play_arc(start_pos: Vector3, end_pos: Vector3, duration: float) -> void:
 
 func _on_arc_complete() -> void:
 	_active_tween = null
+	_anchor_position = global_position
 	# Stays visible, floating at the landing point as a bobber, until the
 	# reel resolves (see _process below) -- doesn't hide here anymore.
 	lure_landed.emit()
@@ -116,6 +118,16 @@ func _process(_delta: float) -> void:
 		hide()
 		_set_line_collider_active(rod, false)
 		return
+
+	if _active_tween == null:
+		# Re-assert the anchor every frame rather than trusting it to stay
+		# put on its own -- this node is parented under Rod, which is now
+		# rigidly camera-attached (see player.tscn's AttachPoint_Hand fix).
+		# A bobber that's only ever positioned once, as a child of something
+		# that keeps moving, drifts along with it: turning your camera was
+		# dragging the "landed" bobber around like it was rigidly welded to
+		# the rod instead of floating independently at a fixed water spot.
+		global_position = _anchor_position
 
 	var rod_tip := rod.get_node("RodTip") as Marker3D
 	if rod_tip:
