@@ -48,6 +48,15 @@ const QTE_PROMPTS: Array[Dictionary] = [
 var _rod: Rod = null
 var _active: bool = false
 
+## While the local player is tangled (see EventBus.tangle_started/resolved),
+## a bite that fires mid-tangle shouldn't pop the reel up on top of the
+## tangle UI -- both would fight over the same "cast" input. Detection only
+## ever starts a NEW tangle between two WAITING_BITE rods (Rod
+## ._on_line_area_entered), so a bite can still legitimately fire while a
+## tangle is already in progress; this just holds it until the tangle clears.
+var _local_player_tangled: bool = false
+var _deferred_bite: FishData = null
+
 var _zone_pos: float = 0.5
 var _zone_vel: float = 0.0
 var _zone_height: float = ZONE_HEIGHT
@@ -79,6 +88,8 @@ func _ready() -> void:
 	_build_ui()
 	hide()
 	EventBus.bite_started.connect(_on_bite_started)
+	EventBus.tangle_started.connect(_on_tangle_started)
+	EventBus.tangle_resolved.connect(_on_tangle_resolved_global)
 
 
 func _build_ui() -> void:
@@ -132,10 +143,37 @@ func _build_ui() -> void:
 	_bar_bg.add_child(_miss_label)
 
 
-func _on_bite_started(_fish_data: FishData, caster_peer_id: int) -> void:
+func _on_tangle_started(peer_a: int, peer_b: int) -> void:
+	var my_id := multiplayer.get_unique_id()
+	if my_id == peer_a or my_id == peer_b:
+		_local_player_tangled = true
+
+
+func _on_tangle_resolved_global(winner_peer_id: int, loser_peer_id: int) -> void:
+	var my_id := multiplayer.get_unique_id()
+	if my_id != winner_peer_id and my_id != loser_peer_id:
+		return
+	_local_player_tangled = false
+	if _deferred_bite == null:
+		return
+	var fish_data := _deferred_bite
+	_deferred_bite = null
+	# If we lost, our own Rod already reset itself to IDLE on tangle_resolved
+	# (Rod._on_tangle_resolved) -- _try_start_reel's own WAITING_BITE check
+	# naturally drops the deferred bite in that case, nothing extra needed.
+	_try_start_reel(fish_data, my_id)
+
+
+func _on_bite_started(fish_data: FishData, caster_peer_id: int) -> void:
 	if caster_peer_id != multiplayer.get_unique_id():
 		return
+	if _local_player_tangled:
+		_deferred_bite = fish_data
+		return
+	_try_start_reel(fish_data, caster_peer_id)
 
+
+func _try_start_reel(_fish_data: FishData, caster_peer_id: int) -> void:
 	var player: Player = NetworkManager.spawned_players.get(caster_peer_id)
 	if player == null:
 		return
