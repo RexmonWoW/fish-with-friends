@@ -79,9 +79,18 @@ func _request_cast(cam_origin: Vector3, cam_forward: Vector3, power: float) -> v
 # ── Host-only validation (not an RPC) ─────────────────────────────────────────
 
 func _validate_and_land_cast(cam_origin: Vector3, cam_forward: Vector3, power: float) -> void:
-	var direction := cam_forward.normalized()
+	# Cast distance is horizontal reach, not full 3D look-direction distance --
+	# otherwise aiming down at the water (as any player naturally would while
+	# fishing) sends the endpoint's Y far below the surface and the water
+	# raycast below never reaches it. GDD: aim direction + power -> distance,
+	# not literal 3D line-of-sight.
+	var horizontal := Vector3(cam_forward.x, 0.0, cam_forward.z)
+	if horizontal.length_squared() < 0.0001:
+		horizontal = Vector3(0.0, 0.0, -1.0)  # looking straight up/down — fall back
+	var direction := horizontal.normalized()
+
 	var distance := maxf(power * max_cast_distance, min_cast_distance)
-	var endpoint := cam_origin + direction * distance
+	var endpoint := Vector3(cam_origin.x, cam_origin.y, cam_origin.z) + direction * distance
 
 	if not WaterValidator.is_valid_water(endpoint, current_map):
 		_cast_failed.rpc(&"invalid_water")
