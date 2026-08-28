@@ -1,16 +1,24 @@
 class_name ReelMinigame
 extends Control
 
-## First-slice Stardew-style reel minigame (GDD Reel Mechanic).
-## Local-only: runs entirely on the peer who owns the bite, exactly like
-## CastMeter reads EventBus rather than driving Rod directly. QTE / line
-## tangling / perfect-catch bonus are not implemented yet -- this closes
-## the WAITING_BITE -> IDLE loop so casting is repeatable.
+## Stardew-style reel minigame (GDD Reel Mechanic), local-only: runs entirely
+## on the peer who owns the bite, exactly like CastMeter reads EventBus
+## rather than driving Rod directly.
 ##
-## Hold "jump" to push the catch zone up; release and it falls. Keep the
-## fish icon inside the zone to fill the catch meter before it drains to 0.
+## Hold "cast" (left mouse -- free during REELING since you can't start a
+## new cast while reeling; Rod's own state guards make this safe) to push
+## the catch zone up; release and it falls. Keep the fish icon inside the
+## zone to fill the catch meter before it drains to 0.
+##
+## QTE layer: the fish periodically "runs," prompting a key press (space or
+## an arrow) within a short window. Miss it and the catch zone shrinks a
+## little (death spiral); miss MAX_MISSES times and the line snaps (fish
+## gone). Zero misses on a successful catch = perfect catch, passed through
+## to BiteEventManager for the GDD value bonus.
 
 const ZONE_HEIGHT: float = 0.28
+const MIN_ZONE_HEIGHT: float = 0.10
+const ZONE_SHRINK_PER_MISS: float = 0.05
 const RISE_ACCEL: float = 2.6
 const FALL_ACCEL: float = 1.8
 const MAX_ZONE_SPEED: float = 1.6
@@ -20,21 +28,45 @@ const FISH_RETARGET_MAX: float = 1.4
 const FILL_RATE: float = 0.35          ## progress/sec while overlapping
 const DRAIN_RATE: float = 0.22         ## progress/sec while not overlapping
 
+const QTE_MIN_INTERVAL: float = 2.2
+const QTE_MAX_INTERVAL: float = 4.5
+const QTE_WINDOW: float = 1.1          ## seconds to react
+const QTE_FISH_BOLT_SPEED: float = 2.5 ## fish speed multiplier while a QTE is active
+const MAX_MISSES: int = 3
+
+const QTE_KEYS: Array[Key] = [KEY_SPACE, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]
+const QTE_LABELS := {
+	KEY_SPACE: "SPACE",
+	KEY_UP: "↑",
+	KEY_DOWN: "↓",
+	KEY_LEFT: "←",
+	KEY_RIGHT: "→",
+}
+
 var _rod: Rod = null
 var _active: bool = false
 
 var _zone_pos: float = 0.5
 var _zone_vel: float = 0.0
+var _zone_height: float = ZONE_HEIGHT
 var _fish_pos: float = 0.5
 var _fish_target: float = 0.5
 var _fish_retarget_timer: float = 0.0
 var _progress: float = 0.5
+
+var _qte_active: bool = false
+var _qte_timer: float = 0.0
+var _qte_key: Key = KEY_SPACE
+var _qte_next_in: float = 0.0
+var _miss_count: int = 0
 
 # UI pieces, built procedurally like CastMeter.
 var _bar_bg: ColorRect = null
 var _zone_rect: ColorRect = null
 var _fish_rect: ColorRect = null
 var _progress_fill: ColorRect = null
+var _qte_label: Label = null
+var _miss_label: Label = null
 
 const BAR_WIDTH: float = 60.0
 const BAR_HEIGHT: float = 260.0
@@ -81,8 +113,24 @@ func _build_ui() -> void:
 	_progress_fill.size = Vector2(PROGRESS_WIDTH, 0.0)
 	progress_bg.add_child(_progress_fill)
 
+	_qte_label = Label.new()
+	_qte_label.add_theme_font_size_override("font_size", 28)
+	_qte_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
+	_qte_label.position = Vector2(-160.0, BAR_HEIGHT * 0.5 - 20.0)
+	_qte_label.size = Vector2(120.0, 40.0)
+	_qte_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_qte_label.hide()
+	_bar_bg.add_child(_qte_label)
 
-func _on_bite_started(fish_data: FishData, caster_peer_id: int) -> void:
+	_miss_label = Label.new()
+	_miss_label.add_theme_font_size_override("font_size", 14)
+	_miss_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
+	_miss_label.position = Vector2(-160.0, BAR_HEIGHT + 8.0)
+	_miss_label.size = Vector2(120.0, 24.0)
+	_bar_bg.add_child(_miss_label)
+
+
+func _on_bite_started(_fish_data: FishData, caster_peer_id: int) -> void:
 	if caster_peer_id != multiplayer.get_unique_id():
 		return
 
@@ -97,11 +145,17 @@ func _on_bite_started(fish_data: FishData, caster_peer_id: int) -> void:
 	_rod.state = Rod.CastState.REELING
 	_zone_pos = 0.5
 	_zone_vel = 0.0
+	_zone_height = ZONE_HEIGHT
 	_fish_pos = 0.5
 	_fish_target = 0.5
 	_fish_retarget_timer = 0.0
 	_progress = 0.5
+	_qte_active = false
+	_miss_count = 0
+	_qte_next_in = randf_range(QTE_MIN_INTERVAL, QTE_MAX_INTERVAL)
 	_active = true
+	_qte_label.hide()
+	_update_miss_label()
 	show()
 
 
@@ -110,6 +164,7 @@ func _process(delta: float) -> void:
 		return
 
 	_update_zone(delta)
+	_update_qte(delta)
 	_update_fish(delta)
 	_update_progress(delta)
 	_update_visuals()
@@ -121,7 +176,7 @@ func _process(delta: float) -> void:
 
 
 func _update_zone(delta: float) -> void:
-	if Input.is_action_pressed("jump"):
+	if Input.is_action_pressed("cast"):
 		_zone_vel += RISE_ACCEL * delta
 	else:
 		_zone_vel -= FALL_ACCEL * delta
@@ -138,8 +193,9 @@ func _update_fish(delta: float) -> void:
 		_fish_target = randf_range(0.0, 1.0)
 		_fish_retarget_timer = randf_range(FISH_RETARGET_MIN, FISH_RETARGET_MAX)
 
+	var speed := FISH_SPEED * (QTE_FISH_BOLT_SPEED if _qte_active else 1.0)
 	var diff := _fish_target - _fish_pos
-	var step := FISH_SPEED * delta
+	var step := speed * delta
 	if absf(diff) <= step:
 		_fish_pos = _fish_target
 	else:
@@ -147,14 +203,75 @@ func _update_fish(delta: float) -> void:
 
 
 func _update_progress(delta: float) -> void:
-	var zone_half := ZONE_HEIGHT * 0.5
+	var zone_half := _zone_height * 0.5
 	var overlapping := absf(_fish_pos - _zone_pos) <= zone_half
 	_progress += (FILL_RATE if overlapping else -DRAIN_RATE) * delta
 	_progress = clampf(_progress, 0.0, 1.0)
 
 
+# ── QTE layer ────────────────────────────────────────────────────────────────
+
+func _update_qte(delta: float) -> void:
+	if _qte_active:
+		_qte_timer -= delta
+		if _qte_timer <= 0.0:
+			_on_qte_missed()
+		return
+
+	_qte_next_in -= delta
+	if _qte_next_in <= 0.0:
+		_start_qte()
+
+
+func _start_qte() -> void:
+	_qte_active = true
+	_qte_timer = QTE_WINDOW
+	_qte_key = QTE_KEYS[randi() % QTE_KEYS.size()]
+	_qte_label.text = QTE_LABELS[_qte_key]
+	_qte_label.show()
+	# "The fish runs" -- bolt toward a fresh random spot at higher speed
+	# while the prompt is up (see _update_fish's QTE_FISH_BOLT_SPEED).
+	_fish_target = randf_range(0.0, 1.0)
+	_fish_retarget_timer = QTE_WINDOW
+
+
+func _on_qte_succeeded() -> void:
+	_qte_active = false
+	_qte_label.hide()
+	_qte_next_in = randf_range(QTE_MIN_INTERVAL, QTE_MAX_INTERVAL)
+
+
+func _on_qte_missed() -> void:
+	_qte_active = false
+	_qte_label.hide()
+	_miss_count += 1
+	_zone_height = maxf(_zone_height - ZONE_SHRINK_PER_MISS, MIN_ZONE_HEIGHT)
+	_update_miss_label()
+
+	if _miss_count >= MAX_MISSES:
+		_finish(false)  # line snaps
+		return
+
+	_qte_next_in = randf_range(QTE_MIN_INTERVAL, QTE_MAX_INTERVAL)
+
+
+func _update_miss_label() -> void:
+	_miss_label.text = "Misses: %d/%d" % [_miss_count, MAX_MISSES]
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _active or not _qte_active:
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		if (event as InputEventKey).keycode == _qte_key:
+			_on_qte_succeeded()
+
+
+# ── Visuals ──────────────────────────────────────────────────────────────────
+
 func _update_visuals() -> void:
 	# All positions are 0 (bottom) .. 1 (top); UI y grows downward.
+	_zone_rect.size = Vector2(BAR_WIDTH, BAR_HEIGHT * _zone_height)
 	_zone_rect.position = Vector2(
 		0.0, BAR_HEIGHT * (1.0 - _zone_pos) - _zone_rect.size.y * 0.5
 	)
@@ -169,9 +286,12 @@ func _update_visuals() -> void:
 
 
 func _finish(success: bool) -> void:
+	var was_perfect := success and _miss_count == 0
 	_active = false
+	_qte_active = false
+	_qte_label.hide()
 	hide()
 	if _rod:
 		_rod.state = Rod.CastState.IDLE  # optimistic, same pattern as Rod.release_cast
-		_rod.request_reel_resolution(success)
+		_rod.request_reel_resolution(success, was_perfect)
 	_rod = null

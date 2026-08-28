@@ -90,13 +90,17 @@ func _validate_and_land_cast(cam_origin: Vector3, cam_forward: Vector3, power: f
 	var direction := horizontal.normalized()
 
 	var distance := maxf(power * max_cast_distance, min_cast_distance)
-	var endpoint := Vector3(cam_origin.x, cam_origin.y, cam_origin.z) + direction * distance
+	var aim_point := Vector3(cam_origin.x, cam_origin.y, cam_origin.z) + direction * distance
 
-	if not WaterValidator.is_valid_water(endpoint, current_map):
+	# Snap to the actual water surface height, not the aim point's height --
+	# otherwise the lure/bobber ends up floating at eye level instead of
+	# sitting on the water.
+	var water_point = WaterValidator.find_water_point(aim_point, current_map)
+	if water_point == null:
 		_cast_failed.rpc(&"invalid_water")
 		return
 
-	_cast_landed.rpc(endpoint, 0.5)  # 0.5 s lure flight — placeholder
+	_cast_landed.rpc(water_point, 0.5)  # 0.5 s lure flight — placeholder
 
 
 # ── RPC 2: Host → All clients, cast confirmed ─────────────────────────────────
@@ -120,12 +124,12 @@ func _cast_failed(reason: StringName) -> void:
 ## host to despawn the Fish it's holding for this rod. The owning client
 ## already reset its own state to IDLE optimistically before calling this.
 
-func request_reel_resolution(success: bool) -> void:
-	_request_reel_resolution.rpc(success)
+func request_reel_resolution(success: bool, was_perfect: bool) -> void:
+	_request_reel_resolution.rpc(success, was_perfect)
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _request_reel_resolution(success: bool) -> void:
+func _request_reel_resolution(success: bool, was_perfect: bool) -> void:
 	if not multiplayer.is_server():
 		return
 
@@ -136,4 +140,4 @@ func _request_reel_resolution(success: bool) -> void:
 
 	var bite_manager: Node = get_tree().get_first_node_in_group("bite_event_manager")
 	if bite_manager:
-		bite_manager.resolve_reel(owner_peer_id, success)
+		bite_manager.resolve_reel(owner_peer_id, success, was_perfect)

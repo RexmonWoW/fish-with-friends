@@ -77,12 +77,14 @@ func _cancel_pending(caster_peer_id: int) -> void:
 
 ## Called by Rod (host-side) once the owning client's local reel minigame
 ## has finished. On success, builds a CaughtFish and adds it to the map's
-## Livewell before despawning the live Fish either way.
-func resolve_reel(caster_peer_id: int, success: bool) -> void:
+## Livewell before despawning the live Fish either way. was_perfect (zero
+## QTE misses) drives FishFactory's value bonus.
+func resolve_reel(caster_peer_id: int, success: bool, was_perfect: bool) -> void:
 	if _active_fish.has(caster_peer_id):
 		var fish: Fish = _active_fish[caster_peer_id]
 		if is_instance_valid(fish):
 			if success:
+				fish.was_perfect = was_perfect
 				_add_catch_to_livewell(fish, caster_peer_id)
 			fish.queue_free()
 		_active_fish.erase(caster_peer_id)

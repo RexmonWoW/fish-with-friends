@@ -74,14 +74,16 @@ func _physics_process(delta: float) -> void:
 	if peer_id != multiplayer.get_unique_id():
 		return
 
-	_apply_movement_impulse(_get_move_direction(), delta)
+	# Planted while a cast is out -- no walking/jumping around with a taut
+	# line. Camera look and the rod's own inputs (charge/reel) still work.
+	var rod := equipment_slot.equipped_item as Rod
+	var can_move := rod == null or rod.state == Rod.CastState.IDLE
+
+	if can_move:
+		_apply_movement_impulse(_get_move_direction(), delta)
 	_soft_follow_body_yaw(delta)
 
-	# "jump" doubles as the reel-up input (see ReelMinigame) -- don't also
-	# launch the player into the air while reeling.
-	var rod := equipment_slot.equipped_item as Rod
-	var is_reeling := rod != null and rod.state == Rod.CastState.REELING
-	if not is_reeling and Input.is_action_just_pressed("jump") and _is_grounded():
+	if can_move and Input.is_action_just_pressed("jump") and _is_grounded():
 		apply_central_impulse(Vector3.UP * jump_force)
 
 
