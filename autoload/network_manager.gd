@@ -150,6 +150,12 @@ func _on_peer_connected(peer_id: int) -> void:
 	if current_map != null:
 		_load_map_on_client.rpc_id(peer_id, current_map.map_id)
 
+	# Catch the newly-connected peer up on everyone already spawned (the
+	# host, plus any other clients who joined earlier) -- our own spawn
+	# notification below only fires going forward.
+	for existing_peer_id in spawned_players.keys():
+		_notify_player_registered.rpc_id(peer_id, existing_peer_id)
+
 	_spawn_player_for_peer(peer_id)
 
 
@@ -179,15 +185,24 @@ func _on_server_disconnected() -> void:
 # ── Spawn helpers ────────────────────────────────────────────────────────────
 ## _spawn_player_for_peer (triggering .spawn()) is host-only -- only the
 ## authority can originate a spawn. But the bookkeeping below (populating
-## spawned_players, emitting peer_player_spawned/spawned_local_player) runs
-## on EVERY peer, via the spawner's own "spawned" signal, which fires both
-## for the local .spawn() call AND for every peer that receives it via
-## replication. It used to live inline in _spawn_player_for_peer, which is
-## itself only ever called from host-guarded code -- so a joining client's
-## own spawned_players stayed empty forever (breaking anything that looked
-## up NetworkManager.spawned_players, e.g. ReelMinigame) and
-## spawned_local_player never fired for them (so MainMenu never hid, even
-## though their Player node existed and worked underneath).
+## spawned_players, emitting peer_player_spawned/spawned_local_player) needs
+## to run on EVERY peer. It used to live inline in _spawn_player_for_peer,
+## which is only ever called host-side -- so a joining client's own
+## spawned_players stayed empty forever (breaking anything that looked up
+## NetworkManager.spawned_players, e.g. ReelMinigame) and spawned_local_player
+## never fired for them (so MainMenu never hid, even though their Player
+## node existed and worked underneath).
+##
+## First fix attempt routed this through MultiplayerSpawner's own "spawned"
+## signal -- confirmed it does NOT fire for whoever originates .spawn()
+## (only the return value carries the node there), but a second real 2-
+## machine test showed the client STILL never registered even as a
+## replication receiver, and it also never learned about the HOST's
+## pre-existing player (a notification that only fires going forward can't
+## retroactively catch up a late joiner). Replaced with an explicit
+## broadcast RPC + a poll for the node actually existing locally, since RPCs
+## are the one mechanism already proven reliable everywhere else in this
+## codebase (bite_started, reel_finished, livewell add/remove).
 
 func _get_spawner() -> void:
 	if _player_spawner != null:
@@ -199,7 +214,6 @@ func _get_spawner() -> void:
 		push_error("NetworkManager: could not find PlayerSpawner node.")
 		return
 	_player_spawner.spawn_function = Callable(self, "_spawn_player")
-	_player_spawner.spawned.connect(_on_player_node_spawned)
 
 
 func _spawn_player(peer_id: int) -> Node:
@@ -231,28 +245,42 @@ func _spawn_player_for_peer(peer_id: int) -> void:
 		push_error("NetworkManager: spawner returned null for peer %d" % peer_id)
 		return
 
-	# Confirmed empirically (not just assumed) that MultiplayerSpawner's
-	# "spawned" signal does NOT fire for the peer that itself calls .spawn()
-	# -- only its return value carries the node. So the spawning peer (the
-	# host, always -- only the host ever calls this) registers directly here;
-	# _on_player_node_spawned below covers every OTHER peer, who never call
-	# .spawn() themselves and only learn about it via that signal once the
-	# spawn replicates to them.
+	# The spawning peer (always the host) has the node right here from the
+	# return value -- register directly rather than round-tripping an RPC
+	# to itself.
 	_register_spawned_player(peer_id, player)
+	# Tell every OTHER peer this player now exists so they run the same
+	# registration once their own replicated copy of the node shows up.
+	_notify_player_registered.rpc(peer_id)
 
 
-## Fires on every peer that RECEIVES a spawn via replication (i.e. everyone
-## except whoever originated the .spawn() call -- see note above).
-func _on_player_node_spawned(node: Node) -> void:
-	var player := node as Player
-	if player == null:
-		return
-	# player.peer_id isn't set yet (setup_for_peer is deferred) -- the node
-	# name is, and is always the peer id (see _spawn_player above).
-	var peer_id := int(node.name)
+## Received by every peer (host included, but it already registered directly
+## above and _register_when_ready's has() guard makes the call_local no-op).
+@rpc("authority", "call_local", "reliable")
+func _notify_player_registered(peer_id: int) -> void:
+	_register_when_ready(peer_id)
+
+
+## The MultiplayerSpawner replication that actually constructs the node and
+## this RPC travel over separate channels with no guaranteed relative
+## ordering, so don't assume the node is already there -- poll briefly.
+func _register_when_ready(peer_id: int, attempts_left: int = 120) -> void:
 	if spawned_players.has(peer_id):
-		return  # already registered directly by _spawn_player_for_peer
-	_register_spawned_player(peer_id, player)
+		return
+
+	var player := get_tree().root.get_node_or_null(
+		"GameRoot/NetworkRoot/Players/%d" % peer_id
+	) as Player
+	if player != null:
+		_register_spawned_player(peer_id, player)
+		return
+
+	if attempts_left <= 0:
+		push_warning("NetworkManager: player %d's node never appeared after spawn notification" % peer_id)
+		return
+
+	await get_tree().process_frame
+	_register_when_ready(peer_id, attempts_left - 1)
 
 
 func _register_spawned_player(peer_id: int, player: Player) -> void:
