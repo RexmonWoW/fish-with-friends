@@ -63,6 +63,9 @@ func _on_tangle_resolved(_winner_peer_id: int, loser_peer_id: int) -> void:
 func start_charge() -> void:
 	if state != CastState.IDLE or _near_livewell:
 		return
+	# No fishing map loaded (e.g. still in the lobby) -- nothing to cast into.
+	if NetworkManager.get_current_map() == null:
+		return
 	state = CastState.CHARGING
 	charge_start_time = Time.get_ticks_msec() / 1000.0
 	current_power = 0.0
