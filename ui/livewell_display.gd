@@ -39,6 +39,13 @@ func _ready() -> void:
 
 func _build_ui() -> void:
 	set_anchors_preset(Control.PRESET_CENTER_TOP)
+	# Control defaults to MOUSE_FILTER_STOP, which swallows mouse motion --
+	# this panel sits near screen-center where MOUSE_MODE_CAPTURED pins the
+	# (invisible) cursor, so without this every peer's FPS look froze solid
+	# any time they stood near a livewell. IGNORE on every node here, not
+	# just the root -- a STOP-filtered child would still eat events routed
+	# to it regardless of the parent's own setting.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var panel_height := ROW_HEIGHT * 3 + 16.0
 
@@ -48,18 +55,21 @@ func _build_ui() -> void:
 	_panel_bg.position = Vector2(-PANEL_WIDTH * 0.5, PANEL_TOP_MARGIN)
 	_panel_bg.anchor_left = 0.5
 	_panel_bg.anchor_right = 0.5
+	_panel_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_panel_bg)
 
 	_info_label = Label.new()
 	_info_label.position = Vector2(12.0, 8.0)
 	_info_label.size = Vector2(PANEL_WIDTH - 24.0, ROW_HEIGHT * 2)
 	_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_info_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel_bg.add_child(_info_label)
 
 	_hint_label = Label.new()
 	_hint_label.position = Vector2(12.0, 8.0 + ROW_HEIGHT * 2)
 	_hint_label.size = Vector2(PANEL_WIDTH - 24.0, ROW_HEIGHT)
 	_hint_label.modulate = Color(0.8, 0.8, 0.8)
+	_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel_bg.add_child(_hint_label)
 
 

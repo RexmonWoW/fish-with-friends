@@ -28,6 +28,13 @@ func _ready() -> void:
 
 func _build_ui() -> void:
 	set_anchors_preset(Control.PRESET_CENTER_TOP)
+	# Control defaults to MOUSE_FILTER_STOP, which swallows mouse motion --
+	# same bug class found and fixed in LivewellDisplay. Mashing itself
+	# already polls Input.is_action_just_pressed() in _process() rather than
+	# routing through GUI input, so it's unaffected either way, but a
+	# STOP-filtered panel sitting over the (invisible) captured cursor would
+	# still freeze the player's own camera look. IGNORE everywhere.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_bar_bg = ColorRect.new()
 	_bar_bg.color = Color(0.1, 0.1, 0.1, 0.8)
@@ -35,11 +42,13 @@ func _build_ui() -> void:
 	_bar_bg.position = Vector2(-BAR_WIDTH * 0.5, 100.0)
 	_bar_bg.anchor_left = 0.5
 	_bar_bg.anchor_right = 0.5
+	_bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_bar_bg)
 
 	_marker = ColorRect.new()
 	_marker.color = Color(0.9, 0.8, 0.2, 1.0)
 	_marker.size = Vector2(6.0, BAR_HEIGHT)
+	_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar_bg.add_child(_marker)
 
 	_label = Label.new()
@@ -47,6 +56,7 @@ func _build_ui() -> void:
 	_label.position = Vector2(-BAR_WIDTH * 0.5, -28.0)
 	_label.size = Vector2(BAR_WIDTH, 24.0)
 	_label.text = "TANGLED! Mash to pull free!"
+	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar_bg.add_child(_label)
 
 

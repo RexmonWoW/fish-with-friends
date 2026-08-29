@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/livewell_mouse_lock_test.gd" id="1_livewellmouselock"]
+
+[node name="LivewellMouseLockTest" type="Node"]
+script = ExtResource("1_livewellmouselock")

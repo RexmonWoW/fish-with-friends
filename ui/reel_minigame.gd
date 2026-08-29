@@ -94,6 +94,12 @@ func _ready() -> void:
 
 func _build_ui() -> void:
 	set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	# Control defaults to MOUSE_FILTER_STOP, which swallows mouse motion --
+	# this sits near screen-center where MOUSE_MODE_CAPTURED pins the
+	# (invisible) cursor, same bug class found and fixed in LivewellDisplay.
+	# IGNORE on every node here; nothing in this minigame is clicked with
+	# the mouse (it's all "cast"-hold and QTE key input).
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_bar_bg = ColorRect.new()
 	_bar_bg.color = Color(0.1, 0.1, 0.1, 0.7)
@@ -103,27 +109,32 @@ func _build_ui() -> void:
 	_bar_bg.anchor_right = 1.0
 	_bar_bg.anchor_top = 0.5
 	_bar_bg.anchor_bottom = 0.5
+	_bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_bar_bg)
 
 	_fish_rect = ColorRect.new()
 	_fish_rect.color = Color(0.9, 0.75, 0.1, 1.0)
 	_fish_rect.size = Vector2(BAR_WIDTH, 10.0)
+	_fish_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar_bg.add_child(_fish_rect)
 
 	_zone_rect = ColorRect.new()
 	_zone_rect.color = Color(1.0, 1.0, 1.0, 0.35)
 	_zone_rect.size = Vector2(BAR_WIDTH, BAR_HEIGHT * ZONE_HEIGHT)
+	_zone_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar_bg.add_child(_zone_rect)
 
 	var progress_bg := ColorRect.new()
 	progress_bg.color = Color(0.1, 0.1, 0.1, 0.7)
 	progress_bg.size = Vector2(PROGRESS_WIDTH, BAR_HEIGHT)
 	progress_bg.position = Vector2(-PROGRESS_WIDTH - 16.0, 0.0)
+	progress_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar_bg.add_child(progress_bg)
 
 	_progress_fill = ColorRect.new()
 	_progress_fill.color = Color(0.2, 0.85, 0.3, 0.9)
 	_progress_fill.size = Vector2(PROGRESS_WIDTH, 0.0)
+	_progress_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	progress_bg.add_child(_progress_fill)
 
 	_qte_label = Label.new()
@@ -132,6 +143,7 @@ func _build_ui() -> void:
 	_qte_label.position = Vector2(-160.0, BAR_HEIGHT * 0.5 - 20.0)
 	_qte_label.size = Vector2(120.0, 40.0)
 	_qte_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_qte_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_qte_label.hide()
 	_bar_bg.add_child(_qte_label)
 
@@ -140,6 +152,7 @@ func _build_ui() -> void:
 	_miss_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
 	_miss_label.position = Vector2(-160.0, BAR_HEIGHT + 8.0)
 	_miss_label.size = Vector2(120.0, 24.0)
+	_miss_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar_bg.add_child(_miss_label)
 
 

@@ -21,6 +21,11 @@ func _ready() -> void:
 func _build_ui() -> void:
 	# Anchor to bottom-center of the screen.
 	set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	# Control defaults to MOUSE_FILTER_STOP, which swallows mouse motion --
+	# left unset here this (and every child below) could freeze FPS look
+	# solid any time it's visible, same bug class found and fixed in
+	# LivewellDisplay. IGNORE everywhere; nothing in this meter is clickable.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	# Container: 40 px wide, 200 px tall, centered horizontally, just above bottom edge.
 	var bar_width  := 40.0
@@ -36,6 +41,7 @@ func _build_ui() -> void:
 	bg.anchor_right  = 0.5
 	bg.anchor_top    = 1.0
 	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
 	# Fill rect — grows upward from the bottom of the track.
@@ -43,6 +49,7 @@ func _build_ui() -> void:
 	_fill.color = Color(1.0, 1.0, 1.0, 0.9)
 	_fill.size = Vector2(bar_width, 0.0)  # starts empty
 	_fill.position = Vector2(0.0, bar_height)  # anchored to bottom of bg
+	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.add_child(_fill)
 
 
