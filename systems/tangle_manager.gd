@@ -25,6 +25,7 @@ func _ready() -> void:
 	if not multiplayer.is_server():
 		return
 	add_to_group("tangle_manager")
+	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 
 
 ## Called by Rod (any peer, but only ever acts on the host -- see Rod
@@ -129,3 +130,26 @@ func _finish_tangle(tangle_id: int) -> void:
 @rpc("authority", "call_local", "reliable")
 func _notify_tangle_resolved(winner_peer_id: int, loser_peer_id: int) -> void:
 	EventBus.tangle_resolved.emit(winner_peer_id, loser_peer_id)
+
+
+## If someone disconnects mid-tangle, the fight stopped being fair the
+## instant they left -- without this, the other (still-connected) player
+## just sits staring at the tangle UI until the stalemate timer runs out,
+## and whoever happened to be ahead on the rope AT THAT MOMENT wins, even
+## though the disconnected peer isn't even there to have earned it. Resolve
+## immediately instead: force the rope fully toward whoever's left so
+## _finish_tangle can only ever declare THEM the winner.
+func _on_peer_disconnected(peer_id: int) -> void:
+	if not _peer_to_tangle.has(peer_id):
+		return
+	var tangle_id: int = _peer_to_tangle[peer_id]
+	var t: Dictionary = _tangles[tangle_id]
+	t["rope"] = -WIN_THRESHOLD if peer_id == t["a"] else WIN_THRESHOLD
+
+	if _timers.has(tangle_id):
+		var timer: Timer = _timers[tangle_id]
+		timer.stop()
+		timer.queue_free()
+		_timers.erase(tangle_id)
+
+	_finish_tangle(tangle_id)
