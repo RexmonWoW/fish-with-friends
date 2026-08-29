@@ -2,21 +2,26 @@ class_name LivewellDisplay
 extends Control
 
 ## Proximity + look popup for a Livewell. Standing in a Livewell's
-## InteractionZone shows a hint panel, but a specific fish's stats only show
-## once the local player is actually looking at (near) that fish -- GDD:
-## "proximity-based FPS look + prompt," not a blanket dump of all 5 slots at
-## once. Pressing 1-5 either throws that slot's fish overboard, or -- if the
-## local player is currently holding a catch (EquipmentSlot.has_fish_held)
-## -- stores/swaps it into that slot instead. No confirmation either way,
-## matching GDD's livewell philosophy.
+## InteractionZone shows a hint panel, and whichever fish is nearest the
+## player's view direction shows its stats -- GDD: "proximity-based FPS look
+## + prompt," not a blanket dump of all 5 slots at once. Doesn't require
+## precisely tracking one specific (swimming) fish, though -- the threshold
+## below is generous on purpose, so casually glancing around near the
+## livewell always keeps a reasonable fish targeted instead of needing to
+## fight the swim motion for pixel-perfect aim. Pressing 1-5 either throws
+## that slot's fish overboard, or -- if the local player is currently
+## holding a catch (EquipmentSlot.has_fish_held) -- stores/swaps it into
+## that slot instead. No confirmation either way, matching GDD's livewell
+## philosophy.
 
 const ROW_HEIGHT: float = 22.0
 const PANEL_WIDTH: float = 360.0
 const PANEL_TOP_MARGIN: float = 60.0
-## How close to dead-center a fish has to be (radians) to count as "looked
-## at" -- tuned for 5 small, swimming, closely-spaced placeholder capsules
-## viewed at close range inside the InteractionZone.
-const LOOK_ANGLE_THRESHOLD: float = 0.24  # ~14 degrees
+## How far off dead-center a fish can be (radians) and still count as
+## "looked at." Generous on purpose (most of the forward hemisphere) --
+## this is just to avoid picking a fish that's technically in the
+## InteractionZone but behind the player, not to demand precise aim.
+const LOOK_ANGLE_THRESHOLD: float = PI / 2.0  # 90 degrees
 
 var _current_livewell: Livewell = null
 var _looked_at_index: int = -1

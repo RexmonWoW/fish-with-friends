@@ -21,16 +21,22 @@ var big_fish_slot: CaughtFish = null ## Reserved slot for big fish event catches
 
 @onready var fish_display: Node3D = $FishDisplay
 
-var _visuals: Array = []      ## Array of MeshInstance3D (or null), parallel to slots.
-var _swim_seeds: Array = []   ## float per slot, randomized at spawn for phase variety
+var _visuals: Array = []        ## Array of MeshInstance3D (or null), parallel to slots.
+var _swim_seeds: Array = []     ## float per slot -- random starting point on its path
+var _swim_directions: Array = []  ## 1.0 or -1.0 per slot -- which way it circles
+var _swim_radius_scale: Array = []  ## per-slot radius variety so paths don't overlap identically
 
 
 func _ready() -> void:
 	slots.resize(MAX_SLOTS)
 	_visuals.resize(MAX_SLOTS)
 	_swim_seeds.resize(MAX_SLOTS)
+	_swim_directions.resize(MAX_SLOTS)
+	_swim_radius_scale.resize(MAX_SLOTS)
 	for i in range(MAX_SLOTS):
 		_swim_seeds[i] = randf() * TAU
+		_swim_directions[i] = -1.0 if randf() < 0.5 else 1.0
+		_swim_radius_scale[i] = randf_range(0.75, 1.25)
 	add_to_group("livewell")  ## Systems can find any livewell via group lookup
 
 	var zone: Area3D = $InteractionZone
@@ -147,29 +153,34 @@ func get_visual_global_position(index: int) -> Variant:
 ## by species (same species always gets the same color) -- just for visual
 ## variety until real models exist.
 
-const SWIM_RADIUS: float = 0.05
+const SWIM_RADIUS: float = 0.12
 const SWIM_BOB_HEIGHT: float = 0.02
-const SWIM_SPEED: float = 1.0
+const SWIM_SPEED: float = 0.6
 
 
-## Small per-slot bob/sway around each fixed slot marker so livewell fish
-## aren't static props -- purely local/visual (every peer independently
-## animates its own mirror off the same slots data; nothing gameplay-
-## relevant depends on the exact position, unlike the cast line's
-## LineCollider, so this needs no networking).
+## Each fish loops on an actual circular path around its own slot marker
+## (radius/direction/speed varied per slot so they don't all trace the same
+## circle in lockstep) instead of just wobbling in place -- purely local/
+## visual (every peer independently animates its own mirror off the same
+## slots data; nothing gameplay-relevant depends on the exact position,
+## unlike the cast line's LineCollider, so this needs no networking).
 func _update_swim_motion() -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	for i in range(MAX_SLOTS):
 		var visual: MeshInstance3D = _visuals[i]
 		if visual == null:
 			continue
-		var phase: float = t * SWIM_SPEED + _swim_seeds[i]
+		var direction: float = _swim_directions[i]
+		var radius: float = SWIM_RADIUS * _swim_radius_scale[i]
+		var phase: float = t * SWIM_SPEED * direction + _swim_seeds[i]
 		visual.position = Vector3(
-			sin(phase) * SWIM_RADIUS,
-			SWIM_BOB_HEIGHT * sin(phase * 1.7),
-			cos(phase * 0.8) * SWIM_RADIUS
+			cos(phase) * radius,
+			SWIM_BOB_HEIGHT * sin(phase * 2.0),
+			sin(phase) * radius
 		)
-		visual.rotation.y = phase
+		# Roughly face the direction of travel around the loop -- not exact,
+		# just enough that it reads as swimming rather than spinning in place.
+		visual.rotation.y = phase * direction + (PI / 2.0 if direction > 0.0 else -PI / 2.0)
 
 func _spawn_visual(index: int, fish: CaughtFish) -> void:
 	_clear_visual(index)
