@@ -7,9 +7,13 @@ extends Node
 ##
 ## GDD: 2 rounds = 1 day, 5-min rounds, money quota due every 2 rounds
 ## (cumulative across days, never resets), run ends on a missed quota.
-## GDD doesn't give an exact base quota or day-over-day growth curve --
-## BASE_QUOTA and QUOTA_GROWTH_PER_DAY below are placeholders pending real
-## balancing from the planning chat (see PROGRESS.md Open Questions).
+## Quota Scaling (GDD): day 1 = BASE_QUOTA * player-count multiplier; every
+## day after, next_quota = round(previous_quota * 1.15 + surplus * 0.4),
+## where surplus is how much the cumulative total cleared the previous
+## quota by (0 if you just barely passed) -- climbs faster the more you
+## clear it by, so one big haul doesn't buy several free days. BASE_QUOTA
+## and the 1.15/0.4 constants are GDD's own placeholders, still pending
+## real balancing.
 ## Fish are "sold" (converted to money) only at end of day, matching
 ## CaughtFish's own doc comment -- the livewell is shared across both
 ## rounds of a day, not cleared between them.
@@ -22,10 +26,10 @@ signal run_over(final_day: int, final_money: int)
 const ROUND_DURATION_SECONDS: float = 300.0  ## GDD: 5 min boat round
 const ROUNDS_PER_DAY: int = 2
 
-## PLACEHOLDER -- GDD gives the player-count multiplier table but not a base
-## value or growth curve. Flagged in PROGRESS.md for real balancing.
+## GDD's own starting-point placeholders (see Quota Scaling section).
 const BASE_QUOTA: int = 100
-const QUOTA_GROWTH_PER_DAY: float = 1.5
+const QUOTA_DAILY_GROWTH: float = 1.15
+const QUOTA_SURPLUS_FACTOR: float = 0.4
 
 const PLAYER_COUNT_MULTIPLIER: Dictionary = {1: 1.0, 2: 1.6, 3: 2.1, 4: 2.5}
 
@@ -36,6 +40,16 @@ var current_quota: int = 0
 
 var _time_remaining: float = 0.0
 var _round_active: bool = false  ## host-only: is the round timer actually ticking
+
+## Host-only. A round transition within the same day (round 1 -> round 2)
+## still reloads the whole Lake scene -- including the Livewell -- via the
+## same _clear_world()/_load_map() NetworkManager uses for every map swap.
+## Without this, a catch from round 1 would silently vanish the moment
+## round 2 loads a fresh (empty) Livewell, contradicting "shared across
+## both rounds of a day, not cleared between them." Snapshotted right
+## before a same-day transition, restored once the next round's Livewell
+## exists.
+var _persisted_livewell: Array = []
 
 
 func _process(delta: float) -> void:
@@ -53,7 +67,7 @@ func reset_for_new_run() -> void:
 	day_number = 1
 	round_number = 1
 	total_money_earned = 0
-	current_quota = _compute_quota(1)
+	current_quota = _compute_day1_quota()
 	_round_active = false
 
 
@@ -61,6 +75,7 @@ func reset_for_new_run() -> void:
 func start_round() -> void:
 	if not multiplayer.is_server():
 		return
+	_restore_livewell()
 	_time_remaining = ROUND_DURATION_SECONDS
 	_round_active = true
 	_notify_round_started.rpc(round_number, day_number, ROUND_DURATION_SECONDS, current_quota)
@@ -79,6 +94,7 @@ func _end_round() -> void:
 
 	if round_number < ROUNDS_PER_DAY:
 		round_number += 1
+		_snapshot_livewell()
 		NetworkManager.return_to_lobby_between_rounds()
 		return
 
@@ -91,9 +107,10 @@ func _end_round() -> void:
 	_notify_day_summary.rpc(finished_day, earned, total_money_earned, current_quota, passed)
 
 	if passed:
+		var surplus := maxi(total_money_earned - current_quota, 0)
+		current_quota = int(round(float(current_quota) * QUOTA_DAILY_GROWTH + float(surplus) * QUOTA_SURPLUS_FACTOR))
 		day_number += 1
 		round_number = 1
-		current_quota = _compute_quota(day_number)
 		NetworkManager.return_to_lobby_between_rounds()
 	else:
 		_notify_run_over.rpc(finished_day, total_money_earned)
@@ -153,8 +170,23 @@ func _sell_all_livewells() -> int:
 	return earned
 
 
-func _compute_quota(day: int) -> int:
+func _snapshot_livewell() -> void:
+	var livewell := get_tree().get_first_node_in_group("livewell") as Livewell
+	_persisted_livewell = livewell.slots.duplicate() if livewell else []
+
+
+func _restore_livewell() -> void:
+	if _persisted_livewell.is_empty():
+		return
+	var livewell := get_tree().get_first_node_in_group("livewell") as Livewell
+	if livewell != null:
+		for fish in _persisted_livewell:
+			if fish != null:
+				livewell.add_fish(fish)
+	_persisted_livewell.clear()
+
+
+func _compute_day1_quota() -> int:
 	var player_count := clampi(NetworkManager.spawned_players.size(), 1, 4)
 	var multiplier: float = PLAYER_COUNT_MULTIPLIER.get(player_count, 1.0)
-	var day_scaled := float(BASE_QUOTA) * pow(QUOTA_GROWTH_PER_DAY, day - 1)
-	return int(round(day_scaled * multiplier))
+	return int(round(float(BASE_QUOTA) * multiplier))

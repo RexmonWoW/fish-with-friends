@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/quota_formula_test.gd" id="1_quotaformula"]
+
+[node name="QuotaFormulaTest" type="Node"]
+script = ExtResource("1_quotaformula")
