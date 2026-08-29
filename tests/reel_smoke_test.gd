@@ -1,8 +1,10 @@
 extends Node
 
 ## Headless smoke test for the reel loop closing back to IDLE, i.e. the
-## "cast once then stuck forever" bug: cast -> wait for bite -> resolve the
-## reel -> confirm Rod is IDLE again -> confirm a second cast actually works.
+## "cast once then stuck forever" bug, plus the hold-then-decide flow: a
+## catch is now handed to the player to hold (not auto-dropped in the
+## livewell), casting is blocked while holding a fish, and storing it
+## actually fills the livewell and hands the rod back.
 
 func _ready() -> void:
 	print("--- Reel smoke test ---")
@@ -69,29 +71,55 @@ func _on_local_player_spawned(player: Player) -> void:
 		get_tree().quit(1)
 		return
 
+	if not player.equipment_slot.has_fish_held():
+		print("FAIL: catch didn't hand the fish to the player to hold")
+		get_tree().quit(1)
+		return
+	var held: CaughtFish = player.equipment_slot.get_held_fish()
+	print("Holding a catch: species=%s size=%.2f value=%d" % [
+		held.species.species_id, held.size, held.final_value
+	])
+
 	var livewell: Livewell = get_tree().get_first_node_in_group("livewell")
-	var caught: CaughtFish = null
-	for slot in livewell.slots:
-		if slot != null:
-			caught = slot
-			break
+	if livewell.slots.count(null) != Livewell.MAX_SLOTS:
+		print("FAIL: catch landed straight in the livewell instead of being held")
+		get_tree().quit(1)
+		return
+
+	print("Trying to cast while holding a fish (should be blocked)...")
+	rod.start_charge()
+	if rod.state != Rod.CastState.IDLE:
+		print("FAIL: could still cast while holding a fish (state=%s)" % rod.state)
+		get_tree().quit(1)
+		return
+	print("Cast correctly blocked while holding a fish.")
+
+	print("Storing the held fish...")
+	player.equipment_slot.request_store_held_fish(0)
+	await get_tree().process_frame
+
+	if player.equipment_slot.has_fish_held():
+		print("FAIL: still holding a fish after storing it")
+		get_tree().quit(1)
+		return
+
+	var caught: CaughtFish = livewell.slots[0]
 	if caught == null:
-		print("FAIL: no fish landed in the livewell after a successful catch")
+		print("FAIL: no fish landed in the livewell after storing")
 		get_tree().quit(1)
 		return
 	print("Livewell slot filled: species=%s size=%.2f value=%d" % [
 		caught.species.species_id, caught.size, caught.final_value
 	])
 
-	var filled_index := livewell.slots.find(caught)
-	var slot_marker := livewell.fish_display.get_child(filled_index)
+	var slot_marker := livewell.fish_display.get_child(0)
 	if slot_marker.get_child_count() == 0:
-		print("FAIL: no visual spawned under slot marker %d" % filled_index)
+		print("FAIL: no visual spawned under slot marker 0")
 		get_tree().quit(1)
 		return
-	print("Visual spawned under slot %d: %s" % [filled_index, slot_marker.get_child(0)])
+	print("Visual spawned under slot 0: %s" % slot_marker.get_child(0))
 
-	print("Second cast (this used to silently no-op)...")
+	print("Second cast (rod should be back in hand after storing)...")
 	rod.start_charge()
 	await get_tree().process_frame
 	print("Rod state after second start_charge: ", rod.state)

@@ -93,10 +93,7 @@ func _on_local_player_spawned(player: Player) -> void:
 	reel._progress = 1.0
 	await get_tree().process_frame
 
-	var caught: CaughtFish = null
-	for slot in livewell.slots:
-		if slot != null:
-			caught = slot
+	var caught: CaughtFish = player.equipment_slot.get_held_fish()
 	if caught == null or not caught.was_perfect_catch:
 		print("FAIL: clean run wasn't recorded as a perfect catch (caught=%s)" % caught)
 		get_tree().quit(1)

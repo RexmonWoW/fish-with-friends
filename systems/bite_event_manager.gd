@@ -97,16 +97,19 @@ func cancel_pending_bite(peer_id: int) -> void:
 
 
 ## Called by Rod (host-side) once the owning client's local reel minigame
-## has finished. On success, builds a CaughtFish and adds it to the map's
-## Livewell before despawning the live Fish either way. was_perfect (zero
-## QTE misses) drives FishFactory's value bonus.
+## has finished. On success, builds a CaughtFish and hands it to the
+## catching player to hold (EquipmentSlot.equip_fish, broadcast to every
+## peer) rather than dropping it straight into the livewell -- the player
+## then chooses to toss it back or store/swap it into a specific slot. Live
+## Fish is despawned either way. was_perfect (zero QTE misses) drives
+## FishFactory's value bonus.
 func resolve_reel(caster_peer_id: int, success: bool, was_perfect: bool) -> void:
 	if _active_fish.has(caster_peer_id):
 		var fish: Fish = _active_fish[caster_peer_id]
 		if is_instance_valid(fish):
 			if success:
 				fish.was_perfect = was_perfect
-				_add_catch_to_livewell(fish, caster_peer_id)
+				_give_catch_to_player(fish, caster_peer_id)
 			fish.queue_free()
 		_active_fish.erase(caster_peer_id)
 	_notify_reel_finished.rpc(success, caster_peer_id)
@@ -117,10 +120,10 @@ func _notify_reel_finished(success: bool, caster_peer_id: int) -> void:
 	EventBus.reel_finished.emit(success, caster_peer_id)
 
 
-func _add_catch_to_livewell(fish: Fish, caster_peer_id: int) -> void:
-	var livewell := get_tree().get_first_node_in_group("livewell") as Livewell
-	if livewell == null:
-		push_warning("BiteEventManager: no Livewell in scene, catch discarded.")
+func _give_catch_to_player(fish: Fish, caster_peer_id: int) -> void:
+	var player: Player = NetworkManager.spawned_players.get(caster_peer_id)
+	if player == null:
+		push_warning("BiteEventManager: no Player found for peer %d, catch discarded." % caster_peer_id)
 		return
 
 	var special_attrs: Array[StringName] = []
@@ -135,5 +138,4 @@ func _add_catch_to_livewell(fish: Fish, caster_peer_id: int) -> void:
 		false
 	)
 
-	if livewell.add_fish(caught) == -1:
-		push_warning("BiteEventManager: livewell full, catch discarded (peer %d)." % caster_peer_id)
+	player.equipment_slot._receive_caught_fish.rpc(caught)

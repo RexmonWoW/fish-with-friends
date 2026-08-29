@@ -13,6 +13,12 @@ var current_power: float = 0.0      ## 0.0–1.0, NOT replicated
 var owner_peer_id: int = 0          ## set by EquipmentSlot on equip
 var player_camera: Camera3D = null  ## set by EquipmentSlot on equip
 
+## False while stowed on the back (EquipmentSlot.unequip_rod(), e.g. holding
+## a caught fish) -- the Rod node stays alive and in the tree either way, so
+## its own _process would otherwise keep responding to "cast" input even
+## while not actually in the player's hand.
+var is_equipped: bool = true
+
 ## True while the local player is standing in a Livewell's InteractionZone --
 ## blocks starting a cast so pressing 1-5 to throw a fish overboard (or just
 ## looking around near the livewell) doesn't also fire the rod.
@@ -61,7 +67,7 @@ func _on_tangle_resolved(_winner_peer_id: int, loser_peer_id: int) -> void:
 # ── Local input (only runs for the rod owner) ─────────────────────────────────
 
 func start_charge() -> void:
-	if state != CastState.IDLE or _near_livewell:
+	if state != CastState.IDLE or _near_livewell or not is_equipped:
 		return
 	# No fishing map loaded (e.g. still in the lobby) -- nothing to cast into.
 	if NetworkManager.get_current_map() == null:
@@ -96,6 +102,10 @@ func release_cast() -> void:
 func _process(_delta: float) -> void:
 	# Only run for the local owner of this rod.
 	if owner_peer_id == 0 or owner_peer_id != multiplayer.get_unique_id():
+		return
+	# Stowed (holding a fish instead) -- don't react to "cast" input at all;
+	# that's EquipmentSlot's toss-back input to handle while a fish is held.
+	if not is_equipped:
 		return
 
 	if state == CastState.CHARGING:

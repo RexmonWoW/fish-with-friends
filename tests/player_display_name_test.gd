@@ -49,7 +49,6 @@ func _on_local_player_spawned(player: Player) -> void:
 	# Confirm it actually reaches CaughtFish via BiteEventManager, not just
 	# the helper function in isolation.
 	var rod: Rod = player.equipment_slot.equipped_item as Rod
-	var livewell: Livewell = get_tree().get_first_node_in_group("livewell")
 
 	rod.start_charge()
 	await get_tree().create_timer(0.2).timeout
@@ -68,12 +67,9 @@ func _on_local_player_spawned(player: Player) -> void:
 	reel._progress = 1.0
 	await get_tree().process_frame
 
-	var caught: CaughtFish = null
-	for slot in livewell.slots:
-		if slot != null:
-			caught = slot
+	var caught: CaughtFish = player.equipment_slot.get_held_fish()
 	if caught == null:
-		print("FAIL: no catch landed in the livewell")
+		print("FAIL: catch wasn't handed to the player to hold")
 		get_tree().quit(1)
 		return
 

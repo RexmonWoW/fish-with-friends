@@ -21,17 +21,25 @@ var big_fish_slot: CaughtFish = null ## Reserved slot for big fish event catches
 
 @onready var fish_display: Node3D = $FishDisplay
 
-var _visuals: Array = []  ## Array of MeshInstance3D (or null), parallel to slots.
+var _visuals: Array = []      ## Array of MeshInstance3D (or null), parallel to slots.
+var _swim_seeds: Array = []   ## float per slot, randomized at spawn for phase variety
 
 
 func _ready() -> void:
 	slots.resize(MAX_SLOTS)
 	_visuals.resize(MAX_SLOTS)
+	_swim_seeds.resize(MAX_SLOTS)
+	for i in range(MAX_SLOTS):
+		_swim_seeds[i] = randf() * TAU
 	add_to_group("livewell")  ## Systems can find any livewell via group lookup
 
 	var zone: Area3D = $InteractionZone
 	zone.body_entered.connect(_on_body_entered)
 	zone.body_exited.connect(_on_body_exited)
+
+
+func _process(_delta: float) -> void:
+	_update_swim_motion()
 
 
 ## Host-authoritative: host picks the slot, then broadcasts the actual
@@ -77,6 +85,19 @@ func is_full() -> bool:
 	return not slots.has(null)
 
 
+## Host-authoritative: force-sets a specific slot regardless of its current
+## contents -- overwriting an occupied slot silently discards whatever fish
+## was there, matching this livewell's existing "no confirmation, thrown
+## fish are gone immediately" philosophy. Used for the held-fish "store or
+## swap" flow (EquipmentSlot._request_store_held_fish) -- reuses _apply_add
+## directly since it already handles either case (empty or occupied) the
+## same way.
+func replace_fish(index: int, fish: CaughtFish) -> void:
+	if index < 0 or index >= MAX_SLOTS:
+		return
+	_apply_add.rpc(index, fish)
+
+
 # ── Interaction (throw a fish overboard to free a slot) ────────────────────────
 ## GDD: any player can grab any fish and throw it overboard, no confirmation.
 
@@ -107,13 +128,48 @@ func _on_body_exited(body: Node) -> void:
 	EventBus.livewell_proximity_changed.emit(self, false)
 
 
+## World-space position of the fish visual currently in a slot, following
+## its swim motion -- null if the slot's empty. Used by LivewellDisplay to
+## figure out which specific (moving) fish the local player is looking at.
+func get_visual_global_position(index: int) -> Variant:
+	if index < 0 or index >= MAX_SLOTS:
+		return null
+	var visual: MeshInstance3D = _visuals[index]
+	if visual == null:
+		return null
+	return visual.global_position
+
+
 # ── Visuals ──────────────────────────────────────────────────────────────────
 ## Placeholder capsule per slot, parented to that slot's Marker3D -- spawned
 ## via _apply_add/_apply_remove above so every peer gets the same visual.
-## Swimming/animated fish is a planned follow-up; this is static placement.
 ## Sized by the fish's rolled size relative to its species' min/max, tinted
 ## by species (same species always gets the same color) -- just for visual
 ## variety until real models exist.
+
+const SWIM_RADIUS: float = 0.05
+const SWIM_BOB_HEIGHT: float = 0.02
+const SWIM_SPEED: float = 1.0
+
+
+## Small per-slot bob/sway around each fixed slot marker so livewell fish
+## aren't static props -- purely local/visual (every peer independently
+## animates its own mirror off the same slots data; nothing gameplay-
+## relevant depends on the exact position, unlike the cast line's
+## LineCollider, so this needs no networking).
+func _update_swim_motion() -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	for i in range(MAX_SLOTS):
+		var visual: MeshInstance3D = _visuals[i]
+		if visual == null:
+			continue
+		var phase: float = t * SWIM_SPEED + _swim_seeds[i]
+		visual.position = Vector3(
+			sin(phase) * SWIM_RADIUS,
+			SWIM_BOB_HEIGHT * sin(phase * 1.7),
+			cos(phase * 0.8) * SWIM_RADIUS
+		)
+		visual.rotation.y = phase
 
 func _spawn_visual(index: int, fish: CaughtFish) -> void:
 	_clear_visual(index)
