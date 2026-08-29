@@ -28,8 +28,10 @@ func _process(_delta: float) -> void:
 	if _held_fish == null:
 		return
 	# Toss back works anywhere, no livewell needed -- storing/swapping (1-5)
-	# is handled by LivewellDisplay, which is already proximity-gated.
-	if Input.is_action_just_pressed("cast"):
+	# is handled by LivewellDisplay, which is already proximity-gated. Its
+	# own dedicated key (not "cast"/click) so it can't fire by accident
+	# while just trying to look around or click something else.
+	if Input.is_action_just_pressed(&"toss_fish"):
 		request_toss_held_fish()
 
 
