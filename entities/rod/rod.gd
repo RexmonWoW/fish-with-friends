@@ -1,7 +1,7 @@
 class_name Rod
 extends Node3D
 
-enum CastState { IDLE, CHARGING, ANIMATING, WAITING_BITE, REELING }
+enum CastState { IDLE, CHARGING, ANIMATING, WAITING_BITE, REELING, BIG_FISH_EVENT }
 
 @export var max_cast_distance: float = 30.0  ## meters from rod tip
 @export var min_cast_distance: float = 3.0
@@ -197,6 +197,16 @@ func _cast_landed(endpoint: Vector3, lure_flight_seconds: float) -> void:
 func _cast_failed(reason: StringName) -> void:
 	state = CastState.IDLE
 	EventBus.cast_failed.emit(reason, owner_peer_id)
+
+
+# ── Big Fish Event (BigFishEventManager, host-only, calls this directly) ───────
+## Every peer has a SEPARATE Rod instance, not shared memory -- setting
+## .state host-side only changes the host's own local mirror, so joining/
+## leaving the event needs to broadcast the same way _cast_landed does.
+
+@rpc("authority", "call_local", "reliable")
+func _set_big_fish_event_state(participating: bool) -> void:
+	state = CastState.BIG_FISH_EVENT if participating else CastState.IDLE
 
 
 # ── RPC 4: Client → Host, local reel minigame resolved ─────────────────────────

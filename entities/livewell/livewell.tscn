@@ -40,4 +40,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0.3, 0)
 [node name="Slot5" type="Marker3D" parent="FishDisplay"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.3, 0)
 
+[node name="BigFishSlot" type="Marker3D" parent="FishDisplay"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0.35)
+
 [node name="LivewellSync" type="MultiplayerSynchronizer" parent="."]

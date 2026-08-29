@@ -25,6 +25,7 @@ var _visuals: Array = []        ## Array of MeshInstance3D (or null), parallel t
 var _swim_seeds: Array = []     ## float per slot -- random starting point on its path
 var _swim_directions: Array = []  ## 1.0 or -1.0 per slot -- which way it circles
 var _swim_radius_scale: Array = []  ## per-slot radius variety so paths don't overlap identically
+var _big_fish_visual: MeshInstance3D = null
 
 
 func _ready() -> void:
@@ -89,6 +90,42 @@ func _apply_remove(index: int) -> void:
 
 func is_full() -> bool:
 	return not slots.has(null)
+
+
+# ── Big Fish Event's reserved slot ──────────────────────────────────────────────
+## GDD: "Big fish event catch has its own reserved slot separate from the 5
+## livewell slots and does not compete with normal fish inventory." Host-
+## authoritative, same broadcast shape as the 5 normal slots.
+
+func add_big_fish(fish: CaughtFish) -> void:
+	_apply_add_big_fish.rpc(fish)
+
+
+@rpc("authority", "call_local", "reliable")
+func _apply_add_big_fish(fish: CaughtFish) -> void:
+	big_fish_slot = fish
+	_spawn_big_fish_visual(fish)
+	EventBus.livewell_updated.emit(self)
+
+
+func _spawn_big_fish_visual(fish: CaughtFish) -> void:
+	if _big_fish_visual != null and is_instance_valid(_big_fish_visual):
+		_big_fish_visual.queue_free()
+
+	var mesh_instance := MeshInstance3D.new()
+	var capsule := CapsuleMesh.new()
+	var length: float = _visual_length_for(fish) * 1.5  # reads as "the big one"
+	capsule.height = length
+	capsule.radius = length * VISUAL_RADIUS_RATIO
+	mesh_instance.mesh = capsule
+	mesh_instance.rotation.z = PI / 2.0
+
+	var material := StandardMaterial3D.new()
+	material.albedo_color = _color_for_species(fish.species.species_id)
+	mesh_instance.set_surface_override_material(0, material)
+
+	fish_display.get_node("BigFishSlot").add_child(mesh_instance)
+	_big_fish_visual = mesh_instance
 
 
 # ── Interaction (throw a fish overboard to free a slot) ────────────────────────

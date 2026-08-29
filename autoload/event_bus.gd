@@ -62,3 +62,33 @@ signal capsize_corner_claimed(corner_index: int, peer_id: int, claimed_count: in
 
 ## Enough corners claimed -- boat's righted, everyone's back to normal.
 signal capsize_resolved()
+
+# ── Big Fish Event signals ───────────────────────────────────────────────────
+## Host-authoritative (BigFishEventManager), broadcast to every peer.
+
+## Boat shakes -- cast at target_spot within duration seconds to join.
+signal big_fish_ready_check_started(target_spot: Vector3, duration: float)
+
+## A player's cast landed on the spot in time -- they're in.
+signal big_fish_participant_joined(peer_id: int)
+
+## Nobody cast in before the ready check closed -- event's over, no penalty.
+signal big_fish_event_fizzled()
+
+## Ready check closed with at least one participant -- the shared minigame starts.
+signal big_fish_event_active(participant_ids: Array, duration: float)
+
+## Continuous bar/QTE state for every participant while active. Dictionary
+## keyed by peer_id -> {pos, holding, qte_active, qte_prompt, locked_in, ...}
+## -- see BigFishEventManager._participants for the exact shape.
+signal big_fish_state_updated(participants: Dictionary)
+
+## One participant missed their QTE -- bigger hit to them, smaller shared
+## hit to every other still-active participant (BigFishEventManager already
+## applied both before this fires; UI-only signal for feedback/flash).
+signal big_fish_qte_missed(peer_id: int)
+
+## Event's done -- true if everyone locked in before the time limit, false
+## if it ran out first (capsize + lose 2 biggest fish already applied by
+## the time this fires).
+signal big_fish_event_resolved(success: bool)

@@ -32,6 +32,14 @@ func _ready() -> void:
 # ── Internal ───────────────────────────────────────────────────────────────────
 
 func _on_cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int) -> void:
+	# A cast landing on an active Big Fish Event's ready-check spot joins
+	# that instead of becoming a normal bite -- checked first (not
+	# "schedule then cancel") so this doesn't depend on which system's
+	# cast_landed listener happens to run first.
+	var big_fish: Node = get_tree().get_first_node_in_group("big_fish_event_manager")
+	if big_fish and big_fish.try_join(caster_peer_id, endpoint):
+		return
+
 	_cancel_pending(caster_peer_id)
 
 	var timer := Timer.new()

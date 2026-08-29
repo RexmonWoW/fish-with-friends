@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/big_fish_event_fail_test.gd" id="1_bigfishfail"]
+
+[node name="BigFishEventFailTest" type="Node"]
+script = ExtResource("1_bigfishfail")

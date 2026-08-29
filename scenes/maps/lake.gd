@@ -11,3 +11,5 @@ func _ready() -> void:
 
 	var corners: Array = $PlayableArea/Boat/CapsizeCorners.get_children()
 	$PlayableArea/CapsizeManager.setup(corners)
+
+	$PlayableArea/BigFishEventManager.setup(livewell.global_position)
