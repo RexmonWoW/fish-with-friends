@@ -16,23 +16,41 @@ extends Control
 ## gone). Zero misses on a successful catch = perfect catch, passed through
 ## to BiteEventManager for the GDD value bonus.
 
+## "Base" values below are what the easiest (lowest-value) fish plays like --
+## unchanged from before difficulty scaling existed. "Hard" values are what
+## the hardest (highest-value) fish plays like. Every real reel lerps
+## between the two by the hooked fish's own FishData.base_value (see
+## _difficulty_t/_apply_difficulty) -- "fish should be harder to catch the
+## more value they'll have," by request. Not tied to whatever species
+## happen to exist today (VALUE_FOR_MIN/MAX_DIFFICULTY below) so a future
+## higher-tier fish added later automatically lands harder without needing
+## to rebalance existing species.
 const ZONE_HEIGHT: float = 0.28
+const ZONE_HEIGHT_HARD: float = 0.15
 const MIN_ZONE_HEIGHT: float = 0.10
 const ZONE_SHRINK_PER_MISS: float = 0.05
 const RISE_ACCEL: float = 2.6
 const FALL_ACCEL: float = 1.8
 const MAX_ZONE_SPEED: float = 1.6
 const FISH_SPEED: float = 0.5          ## units of [0,1] per second toward its target
+const FISH_SPEED_HARD: float = 1.0
 const FISH_RETARGET_MIN: float = 0.4   ## seconds
 const FISH_RETARGET_MAX: float = 1.4
 const FILL_RATE: float = 0.35          ## progress/sec while overlapping
 const DRAIN_RATE: float = 0.22         ## progress/sec while not overlapping
+const DRAIN_RATE_HARD: float = 0.34
 
 const QTE_MIN_INTERVAL: float = 2.2
+const QTE_MIN_INTERVAL_HARD: float = 1.2
 const QTE_MAX_INTERVAL: float = 4.5
+const QTE_MAX_INTERVAL_HARD: float = 2.4
 const QTE_WINDOW: float = 1.1          ## seconds to react
+const QTE_WINDOW_HARD: float = 0.65
 const QTE_FISH_BOLT_SPEED: float = 2.5 ## fish speed multiplier while a QTE is active
 const MAX_MISSES: int = 3
+
+const VALUE_FOR_MIN_DIFFICULTY: float = 5.0    ## at/below this base_value, plays at the "base" tunables
+const VALUE_FOR_MAX_DIFFICULTY: float = 150.0  ## at/above this base_value, plays at the "hard" tunables
 
 ## Each prompt accepts either key -- WASD is what most players reach for
 ## instinctively (it's otherwise unused during REELING since movement is
@@ -47,6 +65,14 @@ const QTE_PROMPTS: Array[Dictionary] = [
 
 var _rod: Rod = null
 var _active: bool = false
+
+## Per-reel, computed from the hooked fish's value in _try_start_reel --
+## see the BASE/HARD const pairs above.
+var _fish_speed: float = FISH_SPEED
+var _drain_rate: float = DRAIN_RATE
+var _qte_min_interval: float = QTE_MIN_INTERVAL
+var _qte_max_interval: float = QTE_MAX_INTERVAL
+var _qte_window: float = QTE_WINDOW
 
 ## While the local player is tangled (see EventBus.tangle_started/resolved),
 ## a bite that fires mid-tangle shouldn't pop the reel up on top of the
@@ -186,7 +212,7 @@ func _on_bite_started(fish_data: FishData, caster_peer_id: int) -> void:
 	_try_start_reel(fish_data, caster_peer_id)
 
 
-func _try_start_reel(_fish_data: FishData, caster_peer_id: int) -> void:
+func _try_start_reel(fish_data: FishData, caster_peer_id: int) -> void:
 	var player: Player = NetworkManager.spawned_players.get(caster_peer_id)
 	if player == null:
 		return
@@ -196,20 +222,41 @@ func _try_start_reel(_fish_data: FishData, caster_peer_id: int) -> void:
 
 	_rod = rod
 	_rod.state = Rod.CastState.REELING
+
+	var t := _difficulty_t(fish_data)
+	_fish_speed = lerpf(FISH_SPEED, FISH_SPEED_HARD, t)
+	_drain_rate = lerpf(DRAIN_RATE, DRAIN_RATE_HARD, t)
+	_qte_min_interval = lerpf(QTE_MIN_INTERVAL, QTE_MIN_INTERVAL_HARD, t)
+	_qte_max_interval = lerpf(QTE_MAX_INTERVAL, QTE_MAX_INTERVAL_HARD, t)
+	_qte_window = lerpf(QTE_WINDOW, QTE_WINDOW_HARD, t)
+
 	_zone_pos = 0.5
 	_zone_vel = 0.0
-	_zone_height = ZONE_HEIGHT
+	_zone_height = lerpf(ZONE_HEIGHT, ZONE_HEIGHT_HARD, t)
 	_fish_pos = 0.5
 	_fish_target = 0.5
 	_fish_retarget_timer = 0.0
 	_progress = 0.5
 	_qte_active = false
 	_miss_count = 0
-	_qte_next_in = randf_range(QTE_MIN_INTERVAL, QTE_MAX_INTERVAL)
+	_qte_next_in = randf_range(_qte_min_interval, _qte_max_interval)
 	_active = true
 	_qte_label.hide()
 	_update_miss_label()
 	show()
+
+
+## 0.0 (easiest, at/below VALUE_FOR_MIN_DIFFICULTY) .. 1.0 (hardest, at/above
+## VALUE_FOR_MAX_DIFFICULTY), linear between them based on the hooked fish's
+## species-level base_value (size/perfect-catch multipliers aren't rolled
+## yet at bite time, so base_value is the only value signal available here).
+func _difficulty_t(fish_data: FishData) -> float:
+	if fish_data == null:
+		return 0.0
+	return clampf(
+		inverse_lerp(VALUE_FOR_MIN_DIFFICULTY, VALUE_FOR_MAX_DIFFICULTY, float(fish_data.base_value)),
+		0.0, 1.0
+	)
 
 
 func _process(delta: float) -> void:
@@ -246,7 +293,7 @@ func _update_fish(delta: float) -> void:
 		_fish_target = randf_range(0.0, 1.0)
 		_fish_retarget_timer = randf_range(FISH_RETARGET_MIN, FISH_RETARGET_MAX)
 
-	var speed := FISH_SPEED * (QTE_FISH_BOLT_SPEED if _qte_active else 1.0)
+	var speed := _fish_speed * (QTE_FISH_BOLT_SPEED if _qte_active else 1.0)
 	var diff := _fish_target - _fish_pos
 	var step := speed * delta
 	if absf(diff) <= step:
@@ -258,7 +305,7 @@ func _update_fish(delta: float) -> void:
 func _update_progress(delta: float) -> void:
 	var zone_half := _zone_height * 0.5
 	var overlapping := absf(_fish_pos - _zone_pos) <= zone_half
-	_progress += (FILL_RATE if overlapping else -DRAIN_RATE) * delta
+	_progress += (FILL_RATE if overlapping else -_drain_rate) * delta
 	_progress = clampf(_progress, 0.0, 1.0)
 
 
@@ -278,7 +325,7 @@ func _update_qte(delta: float) -> void:
 
 func _start_qte() -> void:
 	_qte_active = true
-	_qte_timer = QTE_WINDOW
+	_qte_timer = _qte_window
 	var prompt: Dictionary = QTE_PROMPTS[randi() % QTE_PROMPTS.size()]
 	_qte_keys = prompt["keys"]
 	_qte_label.text = prompt["label"]
@@ -286,13 +333,13 @@ func _start_qte() -> void:
 	# "The fish runs" -- bolt toward a fresh random spot at higher speed
 	# while the prompt is up (see _update_fish's QTE_FISH_BOLT_SPEED).
 	_fish_target = randf_range(0.0, 1.0)
-	_fish_retarget_timer = QTE_WINDOW
+	_fish_retarget_timer = _qte_window
 
 
 func _on_qte_succeeded() -> void:
 	_qte_active = false
 	_qte_label.hide()
-	_qte_next_in = randf_range(QTE_MIN_INTERVAL, QTE_MAX_INTERVAL)
+	_qte_next_in = randf_range(_qte_min_interval, _qte_max_interval)
 
 
 func _on_qte_missed() -> void:
@@ -306,7 +353,7 @@ func _on_qte_missed() -> void:
 		_finish(false)  # line snaps
 		return
 
-	_qte_next_in = randf_range(QTE_MIN_INTERVAL, QTE_MAX_INTERVAL)
+	_qte_next_in = randf_range(_qte_min_interval, _qte_max_interval)
 
 
 func _update_miss_label() -> void:
