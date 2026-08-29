@@ -1,8 +1,9 @@
 extends Node
 
-## Headless smoke test for the livewell proximity popup + throw-overboard
-## interaction: walk into range -> popup shows the fish -> press "1" ->
-## slot empties again.
+## Headless smoke test for the livewell proximity + look popup and
+## throw-overboard interaction: walk into range -> look at the specific
+## (swimming) fish -> its info shows -> press "1" -> slot empties and the
+## info clears again.
 
 func _ready() -> void:
 	print("--- Livewell interaction smoke test ---")
@@ -62,10 +63,27 @@ func _on_local_player_spawned(player: Player) -> void:
 		print("FAIL: LivewellDisplay never showed up on proximity")
 		get_tree().quit(1)
 		return
-
-	print("Row 0 text: ", display._slot_labels[0].text)
 	if display._current_livewell != livewell:
 		print("FAIL: display's current_livewell doesn't match")
+		get_tree().quit(1)
+		return
+
+	# Aim the camera at the specific (swimming) fish -- info only shows for
+	# whichever slot the player is actually looking at, not a blanket dump.
+	_look_at_slot(player, livewell, slot_index)
+	waited = 0.0
+	while display._looked_at_index != slot_index and waited < 2.0:
+		await get_tree().process_frame
+		waited += get_process_delta_time()
+
+	print("Looked-at index: ", display._looked_at_index)
+	if display._looked_at_index != slot_index:
+		print("FAIL: display never picked up the fish being looked at")
+		get_tree().quit(1)
+		return
+	print("Info while looking at it: ", display._info_label.text)
+	if not ("Sunfish" in display._info_label.text):
+		print("FAIL: info label doesn't show the looked-at fish's species")
 		get_tree().quit(1)
 		return
 
@@ -82,7 +100,34 @@ func _on_local_player_spawned(player: Player) -> void:
 		print("FAIL: fish was not removed from the livewell")
 		get_tree().quit(1)
 		return
-	print("Row 0 text after removal: ", display._slot_labels[0].text)
+
+	# Nothing left in that slot to look at -- the label should fall back to
+	# the generic hint instead of continuing to show the (now gone) fish.
+	await get_tree().process_frame
+	print("Info after removal: ", display._info_label.text)
+	if "Sunfish" in display._info_label.text:
+		print("FAIL: info label still shows the removed fish")
+		get_tree().quit(1)
+		return
 
 	print("--- Livewell interaction smoke test PASSED ---")
 	get_tree().quit()
+
+
+## Orients the player's camera (yaw + pitch) so it's looking directly at the
+## given slot's current (swimming) visual position -- the fish sit well
+## below eye level, so yaw alone isn't enough to bring them within the
+## look-angle threshold.
+func _look_at_slot(player: Player, livewell: Livewell, slot_index: int) -> void:
+	var fish_pos: Vector3 = livewell.get_visual_global_position(slot_index)
+	var cam_origin: Vector3 = player.camera.global_transform.origin
+	var to_fish := fish_pos - cam_origin
+	var horizontal := Vector3(to_fish.x, 0.0, to_fish.z)
+	if horizontal.length_squared() < 0.0001:
+		return
+
+	var forward := Vector3(0.0, 0.0, -1.0)
+	player.camera_rig.rotation.y = forward.signed_angle_to(horizontal.normalized(), Vector3.UP)
+
+	var pitch := atan2(to_fish.y, horizontal.length())
+	player.camera_pitch.rotation.x = clampf(pitch, -PI / 2.0 * 0.95, PI / 2.0 * 0.95)
