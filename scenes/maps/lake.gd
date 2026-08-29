@@ -8,3 +8,6 @@ func _init() -> void:
 func _ready() -> void:
 	super._ready()
 	$PlayableArea/BiteEventManager.current_map_id = map_id
+
+	var corners: Array = $PlayableArea/Boat/CapsizeCorners.get_children()
+	$PlayableArea/CapsizeManager.setup(corners)

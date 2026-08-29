@@ -40,6 +40,11 @@ func _on_livewell_proximity_changed(_livewell: Livewell, in_range: bool) -> void
 	_near_livewell = in_range
 
 
+func _is_owner_swimming() -> bool:
+	var player: Player = NetworkManager.spawned_players.get(owner_peer_id)
+	return player != null and player.is_swimming
+
+
 ## Fires once per rod whose LineCollider newly overlaps another rod's --
 ## i.e. twice per actual tangle (each rod detects the other). TangleManager
 ## dedupes so only the first report starts anything.
@@ -68,6 +73,8 @@ func _on_tangle_resolved(_winner_peer_id: int, loser_peer_id: int) -> void:
 
 func start_charge() -> void:
 	if state != CastState.IDLE or _near_livewell or not is_equipped:
+		return
+	if _is_owner_swimming():
 		return
 	# No fishing map loaded (e.g. still in the lobby) -- nothing to cast into.
 	if NetworkManager.get_current_map() == null:
@@ -106,6 +113,10 @@ func _process(_delta: float) -> void:
 	# Stowed (holding a fish instead) -- don't react to "cast" input at all;
 	# that's EquipmentSlot's toss-back input to handle while a fish is held.
 	if not is_equipped:
+		return
+	# Swimming during a capsize -- "cast" means "claim the nearest corner"
+	# there (Player._try_claim_nearest_corner), not fire the rod.
+	if _is_owner_swimming():
 		return
 
 	if state == CastState.CHARGING:

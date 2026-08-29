@@ -11,6 +11,20 @@ extends RigidBody3D
 
 var peer_id: int = 0
 
+## True while swimming during a capsize (CapsizeManager -> enter_swim_physics/
+## exit_swim_physics). Free XZ movement, no gravity, no jump -- GDD's capsize
+## minigame doesn't need real depth/diving, just "swim to a corner." Only
+## ever set for the LOCAL player -- see enter_swim_physics()'s comment.
+var is_swimming: bool = false
+
+## True on every peer's mirror of EVERY currently-swimming player (not just
+## the local one) -- purely visual (model pose + bob), so unlike is_swimming
+## it's driven directly by the EventBus broadcast, not scoped to "my own
+## player." Capsize is an "everyone at once" event, so every peer should see
+## every player enter/exit the swim pose the same way GDD's "full equipment
+## visibility to other players at all times" already applies to held items.
+var _swim_visual_active: bool = false
+
 # Node references — assigned in _ready, used by EquipmentSlot and Minigame Logic.
 @onready var body_pivot: Node3D        = $BodyPivot
 @onready var camera_rig: Node3D       = $CameraRig
@@ -29,6 +43,11 @@ var peer_id: int = 0
 func _ready() -> void:
 	# Physics body should not tip over.
 	lock_rotation = true
+
+	# Runs on EVERY peer for EVERY spawned Player instance (not owner-gated)
+	# -- see _swim_visual_active's doc comment above.
+	EventBus.capsize_started.connect(func(_required): _apply_swim_visual(true))
+	EventBus.capsize_resolved.connect(func(): _apply_swim_visual(false))
 
 
 ## Called by PlayerSpawner immediately after this node is added to the scene.
@@ -95,6 +114,12 @@ func _physics_process(delta: float) -> void:
 	if peer_id != multiplayer.get_unique_id():
 		return
 
+	if is_swimming:
+		_apply_movement_impulse(_get_move_direction(), delta)
+		linear_velocity.y = 0.0  # stay level at the surface, no gravity drift
+		_soft_follow_body_yaw(delta)
+		return
+
 	# Planted while a cast is out -- no walking/jumping around with a taut
 	# line. Camera look and the rod's own inputs (charge/reel) still work.
 	var rod := equipment_slot.equipped_item as Rod
@@ -106,6 +131,72 @@ func _physics_process(delta: float) -> void:
 
 	if can_move and Input.is_action_just_pressed("jump") and _is_grounded():
 		apply_central_impulse(Vector3.UP * jump_force)
+
+
+func _process(_delta: float) -> void:
+	if _swim_visual_active:
+		_update_swim_bob()
+
+	if peer_id != multiplayer.get_unique_id():
+		return
+	# Reuses the "cast" input, same as EquipmentSlot repurposing "toss_fish"
+	# for tossing back a held fish -- while swimming there's no rod in play
+	# at all (Rod._process gates on is_swimming), so no conflict.
+	if is_swimming and Input.is_action_just_pressed(&"cast"):
+		_try_claim_nearest_corner()
+
+
+func _try_claim_nearest_corner() -> void:
+	var capsize_manager: Node = get_tree().get_first_node_in_group("capsize_manager")
+	if capsize_manager == null:
+		return
+	var index: int = capsize_manager.get_nearest_corner_index(global_position)
+	if index == -1:
+		return
+	capsize_manager.request_claim_corner(index)
+
+
+## Physics-only. Called by CapsizeManager, on the LOCAL player only --
+## global_position/movement is client-authoritative per player, so the host
+## can't just flip this remotely and have it stick, same reasoning as
+## _reposition_local_player() in NetworkManager. Visual pose is separate
+## (_apply_swim_visual below), since every peer needs to see every player
+## swimming, not just their own.
+func enter_swim_physics() -> void:
+	is_swimming = true
+	gravity_scale = 0.0
+	linear_velocity = Vector3.ZERO
+
+
+func exit_swim_physics() -> void:
+	is_swimming = false
+	gravity_scale = 1.0
+	linear_velocity = Vector3.ZERO
+
+
+## Tilts the placeholder capsule to a horizontal "swimming" pose instead of
+## just walking-on-the-water upright -- real swim animation is Art &
+## Polish's, this is just enough to read as "swimming" rather than nothing
+## changing at all. Runs for every player on every peer (see
+## _swim_visual_active), and separately stows/unstows the rod to the back
+## attach point while active, same as holding a fish does.
+func _apply_swim_visual(swimming: bool) -> void:
+	_swim_visual_active = swimming
+	var model := body_pivot.get_node_or_null("PlayerModel") as Node3D
+	if model:
+		model.rotation.x = -PI / 2.0 if swimming else 0.0
+		model.position.y = 0.0
+	if swimming:
+		equipment_slot.stow_rod_for_swim()
+	else:
+		equipment_slot.unstow_rod_after_swim()
+
+
+func _update_swim_bob() -> void:
+	var model := body_pivot.get_node_or_null("PlayerModel") as Node3D
+	if model == null:
+		return
+	model.position.y = sin(Time.get_ticks_msec() / 1000.0 * 2.0) * 0.05
 
 
 # ── Movement helpers ──────────────────────────────────────────────────────────

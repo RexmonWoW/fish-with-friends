@@ -49,3 +49,16 @@ signal tangle_rope_updated(peer_a: int, peer_b: int, rope: float)
 ## Tangle resolved -- winner keeps their cast (no state change needed),
 ## loser's line snaps (Rod listens and resets itself to IDLE).
 signal tangle_resolved(winner_peer_id: int, loser_peer_id: int)
+
+# ── Capsize signals ──────────────────────────────────────────────────────────
+## Host-authoritative (CapsizeManager), broadcast to every peer.
+
+## The boat has capsized -- everyone needs to swim to a corner. required is
+## how many distinct corners need claiming (scales with player count).
+signal capsize_started(required: int)
+
+## One corner got claimed. claimed_count/required for a simple progress readout.
+signal capsize_corner_claimed(corner_index: int, peer_id: int, claimed_count: int, required: int)
+
+## Enough corners claimed -- boat's righted, everyone's back to normal.
+signal capsize_resolved()

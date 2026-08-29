@@ -101,6 +101,21 @@ func re_equip_rod() -> void:
 	stowed_item = null
 
 
+# ── Swimming (capsize) ───────────────────────────────────────────────────────
+## Separate from unequip_rod()/re_equip_rod()'s direct callers (fish-holding)
+## so the two don't stomp on each other if a capsize starts while a fish is
+## already held -- the rod's already stowed in that case, nothing more to do.
+
+func stow_rod_for_swim() -> void:
+	if equipped_item is Rod:
+		unequip_rod()
+
+
+func unstow_rod_after_swim() -> void:
+	if equipped_item == null and stowed_item != null:
+		re_equip_rod()
+
+
 func has_rod_equipped() -> bool:
 	return equipped_item != null
 

@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://systems/bite_event_manager.gd" id="4_bitemgr"]
 [ext_resource type="PackedScene" path="res://entities/fish/fish.tscn" id="5_fishscene"]
 [ext_resource type="Script" path="res://systems/tangle_manager.gd" id="6_tanglemgr"]
+[ext_resource type="Script" path="res://systems/capsize_manager.gd" id="7_capsizemgr"]
 
 [sub_resource type="Environment" id="Environment_lake"]
 background_mode = 1
@@ -61,6 +62,9 @@ fish_scene = ExtResource("5_fishscene")
 
 [node name="TangleManager" type="Node" parent="PlayableArea"]
 script = ExtResource("6_tanglemgr")
+
+[node name="CapsizeManager" type="Node" parent="PlayableArea"]
+script = ExtResource("7_capsizemgr")
 
 [node name="PlayerSpawnPoints" type="Node3D" parent="PlayableArea"]
 

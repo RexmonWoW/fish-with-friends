@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://ui/tangle_minigame.tscn" id="6_tanglemini"]
 [ext_resource type="PackedScene" path="res://ui/round_hud.tscn" id="7_roundhud"]
 [ext_resource type="PackedScene" path="res://ui/run_end_screen.tscn" id="8_runendscreen"]
+[ext_resource type="PackedScene" path="res://ui/capsize_minigame.tscn" id="9_capsizemini"]
 
 [node name="GameRoot" type="Node"]
 
@@ -37,3 +38,5 @@ spawn_limit = 4
 [node name="RoundHud" parent="UILayer" instance=ExtResource("7_roundhud")]
 
 [node name="RunEndScreen" parent="UILayer" instance=ExtResource("8_runendscreen")]
+
+[node name="CapsizeMinigame" parent="UILayer" instance=ExtResource("9_capsizemini")]
