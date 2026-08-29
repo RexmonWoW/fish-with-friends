@@ -81,8 +81,16 @@ func release_cast() -> void:
 		return
 	var cam_origin := player_camera.global_transform.origin
 	var cam_forward := -player_camera.global_transform.basis.z
+	# Optimistic local state -- set BEFORE the RPC, not after. When the
+	# caster IS the host (solo/host play), "any_peer, call_local" means
+	# _request_cast's local invocation runs SYNCHRONOUSLY inline here,
+	# including a rejection's _cast_failed.rpc() call resetting state back
+	# to IDLE -- so setting ANIMATING after the call would silently clobber
+	# that real result back to ANIMATING forever (a soft lock: stuck
+	# "casting," can't move, can't start a new charge). Setting it first lets
+	# whatever the call actually resolves to be the final value.
+	state = CastState.ANIMATING
 	_request_cast.rpc(cam_origin, cam_forward, current_power)
-	state = CastState.ANIMATING  # optimistic local state
 
 
 func _process(_delta: float) -> void:

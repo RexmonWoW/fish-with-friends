@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/cast_reject_softlock_test.gd" id="1_castrejectsoftlock"]
+
+[node name="CastRejectSoftlockTest" type="Node"]
+script = ExtResource("1_castrejectsoftlock")
