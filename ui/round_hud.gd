@@ -24,6 +24,12 @@ func _ready() -> void:
 	RunState.round_started.connect(_on_round_started)
 	RunState.round_ended.connect(_on_round_ended)
 	RunState.day_summary.connect(_on_day_summary)
+	# Livewell contents count toward quota progress before they're actually
+	# sold at day end (see RunState.get_projected_total) -- refresh the
+	# readout live as fish are caught/thrown overboard, not just at
+	# round/day boundaries, or the display sits flat all day and progress
+	# is invisible until it suddenly jumps at the end.
+	EventBus.livewell_updated.connect(_on_livewell_updated)
 
 	_update_money_label()
 
@@ -99,8 +105,14 @@ func _update_timer_label() -> void:
 	_timer_label.text = "%d:%02d" % [minutes, seconds]
 
 
+func _on_livewell_updated(_livewell: Livewell) -> void:
+	_update_money_label()
+
+
 func _update_money_label() -> void:
-	_money_label.text = "$%d / $%d quota" % [RunState.total_money_earned, RunState.current_quota]
+	var livewell_value := RunState.get_livewell_value()
+	var projected := RunState.total_money_earned + livewell_value
+	_money_label.text = "$%d / $%d quota ($%d in livewell)" % [projected, RunState.current_quota, livewell_value]
 
 
 func _show_summary(text: String) -> void:

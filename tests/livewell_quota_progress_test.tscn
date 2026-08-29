@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/livewell_quota_progress_test.gd" id="1_livewellquotaprogress"]
+
+[node name="LivewellQuotaProgressTest" type="Node"]
+script = ExtResource("1_livewellquotaprogress")

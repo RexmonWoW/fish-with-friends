@@ -115,6 +115,31 @@ func _notify_run_over(final_day: int, final_money: int) -> void:
 	run_over.emit(final_day, final_money)
 
 
+## Read-only preview of what's currently sitting in the livewell(s), unsold
+## -- lets the HUD show real progress toward quota during a round instead of
+## a number that only ever changes at day boundaries. Every peer's local
+## Livewell.slots mirror is already kept in sync via the existing add/remove
+## broadcast RPCs, so this is safe to compute locally on any peer, not just
+## the host.
+func get_livewell_value() -> int:
+	var value := 0
+	for livewell_node in get_tree().get_nodes_in_group("livewell"):
+		var livewell := livewell_node as Livewell
+		if livewell == null:
+			continue
+		for fish in livewell.slots:
+			if fish != null:
+				value += (fish as CaughtFish).final_value
+	return value
+
+
+## total_money_earned (banked/sold) + whatever's currently sitting unsold in
+## the livewell -- what the player would actually clear if the day ended
+## right now.
+func get_projected_total() -> int:
+	return total_money_earned + get_livewell_value()
+
+
 func _sell_all_livewells() -> int:
 	var earned := 0
 	for livewell_node in get_tree().get_nodes_in_group("livewell"):
