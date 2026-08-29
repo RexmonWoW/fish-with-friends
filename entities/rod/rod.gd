@@ -200,3 +200,19 @@ func _request_reel_resolution(success: bool, was_perfect: bool) -> void:
 	var bite_manager: Node = get_tree().get_first_node_in_group("bite_event_manager")
 	if bite_manager:
 		bite_manager.resolve_reel(owner_peer_id, success, was_perfect)
+
+	# The owning client already reset ITS OWN local `state` to IDLE
+	# optimistically, but that assignment is purely local -- every other
+	# peer's separate mirror of this Rod never heard about it, so their
+	# `state` stayed at WAITING_BITE forever and LureAnimator (which polls
+	# `rod.state == IDLE` to decide when to hide the bobber/line) never
+	# cleared it: the bobber and line just sat there on every other
+	# player's screen after the cast was actually done. Broadcasting this
+	# explicitly closes that gap -- harmless no-op for the owning client,
+	# who's already at IDLE.
+	_broadcast_reel_state_reset.rpc()
+
+
+@rpc("authority", "call_local", "reliable")
+func _broadcast_reel_state_reset() -> void:
+	state = CastState.IDLE
