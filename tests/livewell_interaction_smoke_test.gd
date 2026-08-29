@@ -1,9 +1,9 @@
 extends Node
 
-## Headless smoke test for the livewell proximity + look popup and
-## throw-overboard interaction: walk into range -> look at the specific
-## (swimming) fish -> its info shows -> press "1" -> slot empties and the
-## info clears again.
+## Headless smoke test for the livewell proximity + look popup and the
+## grab interaction: walk into range -> look at the specific (swimming)
+## fish -> its info shows -> press "1" -> the fish is grabbed into the
+## player's hand (not discarded) -> slot empties and the info clears again.
 
 func _ready() -> void:
 	print("--- Livewell interaction smoke test ---")
@@ -87,7 +87,7 @@ func _on_local_player_spawned(player: Player) -> void:
 		get_tree().quit(1)
 		return
 
-	print("Simulating '1' key press to throw the fish overboard...")
+	print("Simulating '1' key press to grab the fish into hand...")
 	var key_event := InputEventKey.new()
 	key_event.pressed = true
 	key_event.keycode = KEY_1
@@ -95,18 +95,27 @@ func _on_local_player_spawned(player: Player) -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	print("Slot 0 after removal: ", livewell.slots[0])
+	print("Slot 0 after grabbing: ", livewell.slots[0])
 	if livewell.slots[0] != null:
 		print("FAIL: fish was not removed from the livewell")
 		get_tree().quit(1)
 		return
+	if not player.equipment_slot.has_fish_held():
+		print("FAIL: grabbed fish wasn't handed to the player -- it should be held, not discarded")
+		get_tree().quit(1)
+		return
+	if player.equipment_slot.get_held_fish() != caught:
+		print("FAIL: player is holding a different fish than the one grabbed")
+		get_tree().quit(1)
+		return
+	print("Fish grabbed into hand (not discarded).")
 
 	# Nothing left in that slot to look at -- the label should fall back to
 	# the generic hint instead of continuing to show the (now gone) fish.
 	await get_tree().process_frame
-	print("Info after removal: ", display._info_label.text)
+	print("Info after grabbing: ", display._info_label.text)
 	if "Sunfish" in display._info_label.text:
-		print("FAIL: info label still shows the removed fish")
+		print("FAIL: info label still shows the grabbed fish's old slot")
 		get_tree().quit(1)
 		return
 

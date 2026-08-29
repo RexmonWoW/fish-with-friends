@@ -94,8 +94,8 @@ func _on_local_player_spawned(player: Player) -> void:
 		return
 	print("Cast correctly blocked while holding a fish.")
 
-	print("Storing the held fish...")
-	player.equipment_slot.request_store_held_fish(0)
+	print("Storing the held fish (E, auto-picks the first empty slot)...")
+	player.equipment_slot.request_store_held_fish()
 	await get_tree().process_frame
 
 	if player.equipment_slot.has_fish_held():

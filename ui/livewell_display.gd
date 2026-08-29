@@ -8,11 +8,15 @@ extends Control
 ## precisely tracking one specific (swimming) fish, though -- the threshold
 ## below is generous on purpose, so casually glancing around near the
 ## livewell always keeps a reasonable fish targeted instead of needing to
-## fight the swim motion for pixel-perfect aim. Pressing 1-5 either throws
-## that slot's fish overboard, or -- if the local player is currently
-## holding a catch (EquipmentSlot.has_fish_held) -- stores/swaps it into
-## that slot instead. No confirmation either way, matching GDD's livewell
-## philosophy.
+## fight the swim motion for pixel-perfect aim.
+##
+## Interaction (only one thing held at a time, same rule as everywhere else
+## in EquipmentSlot): E stores whatever's currently held into the first
+## empty slot; 1-5 grabs that slot's fish into your (empty) hand, ready to
+## toss (Q, anywhere) or store elsewhere. No direct "throw overboard" or
+## "swap in place" anymore -- replacing a bad fish is grab-then-store, two
+## explicit steps, not one overwrite. No confirmation on any of it, matching
+## GDD's livewell philosophy.
 
 const ROW_HEIGHT: float = 22.0
 const PANEL_WIDTH: float = 360.0
@@ -146,26 +150,29 @@ func _refresh_info() -> void:
 func _update_hint() -> void:
 	var slot := _local_equipment_slot()
 	if slot != null and slot.has_fish_held():
-		_hint_label.text = "Holding a fish — press 1-5 to store or swap it in"
+		_hint_label.text = "Holding a fish — press E to store it"
 	else:
-		_hint_label.text = "Press 1-5 to throw a fish overboard"
+		_hint_label.text = "Press 1-5 to grab a fish (Q to toss, E to put back)"
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _current_livewell == null or not visible:
 		return
-	if not (event is InputEventKey and event.pressed and not event.echo):
+
+	var slot := _local_equipment_slot()
+
+	if event.is_action_pressed(&"store_fish"):
+		if slot != null and slot.has_fish_held():
+			slot.request_store_held_fish()
 		return
 
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
 	var index := (event as InputEventKey).keycode - KEY_1
 	if index < 0 or index >= Livewell.MAX_SLOTS:
 		return
-
-	var slot := _local_equipment_slot()
-	if slot != null and slot.has_fish_held():
-		slot.request_store_held_fish(index)
-	elif _current_livewell.slots[index] != null:
-		_current_livewell.request_remove_fish(index)
+	if slot != null and not slot.has_fish_held() and _current_livewell.slots[index] != null:
+		slot.request_grab_from_livewell(index)
 
 
 func _get_local_player() -> Player:

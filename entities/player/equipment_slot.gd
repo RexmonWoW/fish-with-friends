@@ -132,11 +132,13 @@ func get_held_fish() -> CaughtFish:
 
 # ── Holding a catch (host broadcasts, every peer's mirror updates) ─────────────
 ## GDD: catches used to auto-drop into the livewell (or silently discard it
-## full). Now the player holds their catch and chooses -- toss it back
-## (cast, anywhere) or store/swap it into a specific livewell slot
-## (LivewellDisplay's 1-5, near the livewell) -- so there's less pure
-## gamble, and a great catch can deliberately replace a weak one already in
-## the livewell instead of just being discarded on a full well.
+## full). Now the player holds their catch and chooses -- toss it back (Q,
+## anywhere), store it (E, near a livewell, first empty slot), or -- the
+## same "only one thing at a time" hand -- grab an existing livewell fish
+## out (1-5, near a livewell, only with empty hands) to look at, toss, or
+## put back elsewhere. Replacing a bad fish with a great one is now an
+## explicit two-step "grab the old one out, then store the new one" rather
+## than a single overwrite, matching "you can only hold 1 thing at a time."
 
 @rpc("authority", "call_local", "reliable")
 func _receive_caught_fish(fish: CaughtFish) -> void:
@@ -206,18 +208,16 @@ func _request_toss_held_fish() -> void:
 	_broadcast_fish_resolved.rpc()
 
 
-## Called by LivewellDisplay (host-authoritative caller path, same shape as
-## Livewell.request_remove_fish) when the local player picks a slot (1-5)
-## while holding a fish. index may point at an empty OR occupied slot --
-## Livewell.replace_fish() overwrites either way, matching the livewell's
-## existing "no confirmation, gone immediately" philosophy for whatever fish
-## was there before.
-func request_store_held_fish(index: int) -> void:
-	_request_store_held_fish.rpc(index)
+## Called by LivewellDisplay's "E" handler (proximity-gated there) when the
+## local player is holding a fish. Auto-picks the first empty slot -- no
+## more direct-overwrite; make room first with request_grab_from_livewell()
+## if the well's full and you want to swap something out.
+func request_store_held_fish() -> void:
+	_request_store_held_fish.rpc()
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _request_store_held_fish(index: int) -> void:
+func _request_store_held_fish() -> void:
 	if not multiplayer.is_server():
 		return
 	if not _valid_sender():
@@ -228,8 +228,35 @@ func _request_store_held_fish(index: int) -> void:
 	var livewell: Node = get_tree().get_first_node_in_group("livewell")
 	if livewell == null:
 		return
-	livewell.replace_fish(index, _held_fish)
+	if livewell.add_fish(_held_fish) == -1:
+		return  # full -- nothing happened, caller stays holding the fish
 	_broadcast_fish_resolved.rpc()
+
+
+## Called by LivewellDisplay's "1-5" handler (proximity-gated there) when
+## the local player's hands are empty. Pulls that slot's fish out into your
+## hand -- same equip_fish() path as landing a fresh catch, so it's held,
+## tossable (Q), or re-storable (E) exactly the same way.
+func request_grab_from_livewell(index: int) -> void:
+	_request_grab_from_livewell.rpc(index)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_grab_from_livewell(index: int) -> void:
+	if not multiplayer.is_server():
+		return
+	if not _valid_sender():
+		return
+	if _held_fish != null:
+		return  # only one thing at a time -- hands are full
+
+	var livewell: Livewell = get_tree().get_first_node_in_group("livewell") as Livewell
+	if livewell == null:
+		return
+	var fish := livewell.remove_fish(index)
+	if fish == null:
+		return  # slot was empty
+	_receive_caught_fish.rpc(fish)
 
 
 @rpc("authority", "call_local", "reliable")

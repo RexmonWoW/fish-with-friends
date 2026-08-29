@@ -91,19 +91,6 @@ func is_full() -> bool:
 	return not slots.has(null)
 
 
-## Host-authoritative: force-sets a specific slot regardless of its current
-## contents -- overwriting an occupied slot silently discards whatever fish
-## was there, matching this livewell's existing "no confirmation, thrown
-## fish are gone immediately" philosophy. Used for the held-fish "store or
-## swap" flow (EquipmentSlot._request_store_held_fish) -- reuses _apply_add
-## directly since it already handles either case (empty or occupied) the
-## same way.
-func replace_fish(index: int, fish: CaughtFish) -> void:
-	if index < 0 or index >= MAX_SLOTS:
-		return
-	_apply_add.rpc(index, fish)
-
-
 # ── Interaction (throw a fish overboard to free a slot) ────────────────────────
 ## GDD: any player can grab any fish and throw it overboard, no confirmation.
 
