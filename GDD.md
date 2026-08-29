@@ -102,11 +102,14 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 
 ## Big Fish Event
 *(Lake map only)*
-- Boat shakes, everyone must cast at big fish within time limit
-- Stardew style cursor, each player maintains their own
-- All players must hold long enough together to catch
-- **Fail:** capsizes, lose 2 biggest fish from livewell, triggers capsize minigame
-- **Success:** big fish enters its own reserved slot, bonus money, does not take a livewell slot
+- Random chance to trigger during a round on the Lake map. Boat shakes to signal it.
+- **Ready check:** players cast at the shaking spot to join in. This window has its own short time limit (placeholder ~15-20s, tune by feel). Whoever's cast in when it closes participates — doesn't require the whole lobby, so solo play is just a ready check of one. Nobody casts in = event fizzles.
+- Once the ready check closes, every participating player gets an on-screen bar with their name underneath, visible to everyone (including anyone who didn't join in) — everyone starts together.
+- Same feel as the Reel Mechanic: hold to rise, periodic QTE prompts.
+- **A QTE miss hurts everyone**, not just whoever missed — bigger hit to the player who missed, smaller shared hit to every other active bar. It's a team moment, not just a personal one.
+- **Soft max:** reaching the top of a bar isn't instant — it has to sit in a near-max band for a couple seconds to lock in as done. Falling out of that band (including from a teammate's missed QTE) cancels the lock-in countdown, not the bar's whole progress — climb back and hold again.
+- **Success:** every participating player's bar locks in as done before the event's overall time limit. Big fish enters its own reserved slot, bonus money (3x value), doesn't take a normal livewell slot.
+- **Fail:** time runs out with at least one bar not locked in. Capsizes, lose 2 biggest fish from livewell, triggers Capsize Minigame. Until Capsize Minigame is built, apply the fail penalty (lose 2 biggest fish) with a placeholder message instead of the full minigame — don't block this event on that one.
 
 ---
 
@@ -159,12 +162,20 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 ---
 
 ## Quota Scaling
+Quota isn't a fixed curve independent of how you're doing — it climbs every day on its own, and climbs faster if you clear it by a lot, so one big haul doesn't buy several free days afterward.
+
+- Day 1 quota = base quota × player-count multiplier (below).
+- Every day after: `next_quota = round(previous_quota × 1.15 + surplus × 0.4)`, where `surplus` is how much your cumulative total cleared the previous quota by (0 if you just barely passed).
+- Player-count multiplier is sub-linear on purpose: the livewell is shared and capped at 5 slots no matter how many people are playing, so more players mostly means filling those 5 slots with better fish faster, not more total capacity.
+
 | Players | Multiplier |
 |---|---|
 | 1 | 1.0x |
 | 2 | 1.6x |
 | 3 | 2.1x |
 | 4 | 2.5x |
+
+Base quota and the 1.15 / 0.4 constants are starting points to playtest and tune, not final numbers — see PROGRESS.md.
 
 ---
 
