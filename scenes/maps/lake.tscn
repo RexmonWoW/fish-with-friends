@@ -39,6 +39,7 @@ mesh = SubResource("PlaneMesh_water")
 surface_material_override/0 = SubResource("Mat_water")
 
 [node name="WaterCollision" type="CollisionShape3D" parent="Environment/Water"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 shape = SubResource("Shape_water")
 
 [node name="Lighting" type="Node3D" parent="."]

@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/water_surface_height_test.gd" id="1_watersurfaceheight"]
+
+[node name="WaterSurfaceHeightTest" type="Node"]
+script = ExtResource("1_watersurfaceheight")
