@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/tangle_blocks_movement_test.gd" id="1_tangleblocksmovement"]
+
+[node name="TangleBlocksMovementTest" type="Node"]
+script = ExtResource("1_tangleblocksmovement")
