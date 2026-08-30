@@ -37,7 +37,11 @@ func _ready() -> void:
 
 
 func _build_ui() -> void:
-	set_anchors_preset(Control.PRESET_TOP_WIDE)
+	# Keep this node's own FULL_RECT anchors from the .tscn -- self-
+	# overriding them here (as this used to, and as CapsizeMinigame did
+	# until it sent that panel's label off-screen) risks collapsing the
+	# rect children anchor themselves against. _summary_label anchors
+	# itself directly below.
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_timer_label = Label.new()
@@ -62,15 +66,8 @@ func _build_ui() -> void:
 
 func _process(delta: float) -> void:
 	if _counting_down:
-		# Defensive: hide instead of ticking if we're somehow not actually
-		# on a real round map any more (e.g. a dropped round_ended RPC) --
-		# the timer should only ever be visible during an active round.
-		if NetworkManager.get_current_map() == null:
-			_counting_down = false
-			_timer_label.hide()
-		else:
-			_time_remaining = maxf(_time_remaining - delta, 0.0)
-			_update_timer_label()
+		_time_remaining = maxf(_time_remaining - delta, 0.0)
+		_update_timer_label()
 
 	if _summary_timer > 0.0:
 		_summary_timer -= delta

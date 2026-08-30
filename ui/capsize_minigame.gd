@@ -21,10 +21,13 @@ func _ready() -> void:
 
 
 func _build_ui() -> void:
-	set_anchors_preset(Control.PRESET_CENTER_TOP)
+	# Keep this node's own FULL_RECT anchors from the .tscn -- self-
+	# overriding them here (as this used to) collapsed the rect in a way
+	# that sent the label off-screen. Anchor the label itself instead.
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_label = Label.new()
+	_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_label.add_theme_font_size_override("font_size", 26)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.custom_minimum_size = Vector2(420, 60)

@@ -66,7 +66,12 @@ func _on_round_boundary(_round_number: int, _day_number: int) -> void:
 
 
 func _build_ui() -> void:
-	set_anchors_preset(Control.PRESET_TOP_WIDE)
+	# Keep this node's own FULL_RECT anchors from the .tscn -- self-
+	# overriding them here (as this used to, and as CapsizeMinigame did
+	# until it sent that panel's label off-screen) risks collapsing the
+	# rect children anchor themselves against. Children anchor themselves
+	# directly below.
+	#
 	# Control defaults to MOUSE_FILTER_STOP -- see LivewellDisplay/CastMeter/
 	# ReelMinigame/TangleMinigame, same fix needed everywhere a panel might
 	# sit over the captured cursor.
