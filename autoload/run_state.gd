@@ -184,6 +184,42 @@ func _restore_livewell() -> void:
 	_persisted_livewell.clear()
 
 
+# ── Debug console (testing only) ────────────────────────────────────────────────
+## Fast-forwarding for playtests -- e.g. the Big Fish Event only triggers in
+## the last ~90s of the day's second round (BigFishEventManager), otherwise
+## a long sit through most of two 5-min rounds per attempt. Host-only, same
+## as every other RunState mutation; a client typing a command is a no-op.
+
+func debug_skip_round() -> void:
+	if not multiplayer.is_server() or not _round_active:
+		return
+	_time_remaining = 0.01
+
+
+func debug_set_time_remaining(seconds: float) -> void:
+	if not multiplayer.is_server() or not _round_active:
+		return
+	_time_remaining = maxf(seconds, 0.01)
+
+
+## Ends the current round; if that was round 1, walks through the same
+## NetworkManager.request_start_round() a player triggers at the lobby's
+## StartTrigger so round 2 actually loads for real (livewell persistence
+## and everything else included) instead of skipping the transition, then
+## ends round 2 too.
+func debug_skip_day() -> void:
+	if not multiplayer.is_server() or not _round_active:
+		return
+	if round_number < ROUNDS_PER_DAY:
+		debug_skip_round()
+		await round_ended
+		await get_tree().create_timer(0.5).timeout
+		NetworkManager.request_start_round()
+		await round_started
+		await get_tree().create_timer(0.2).timeout
+	debug_skip_round()
+
+
 func _compute_day1_quota() -> int:
 	var player_count := clampi(NetworkManager.spawned_players.size(), 1, 4)
 	var multiplier: float = PLAYER_COUNT_MULTIPLIER.get(player_count, 1.0)
