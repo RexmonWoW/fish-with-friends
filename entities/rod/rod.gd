@@ -106,6 +106,56 @@ func release_cast() -> void:
 	_request_cast.rpc(cam_origin, cam_forward, current_power)
 
 
+## Right-click while charging or waiting on a bite -- there was previously no
+## way out of either state short of the charge/bite resolving on its own.
+func request_cancel_cast() -> void:
+	if state != CastState.CHARGING and state != CastState.WAITING_BITE:
+		return
+	_request_cancel_cast.rpc()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_cancel_cast() -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	var effective_sender := 1 if sender == 0 else sender
+	if effective_sender != owner_peer_id:
+		return  # Wrong rod -- reject silently.
+	if state != CastState.CHARGING and state != CastState.WAITING_BITE:
+		return  # Already resolved some other way -- nothing to cancel.
+	if state == CastState.WAITING_BITE:
+		var bite_manager: Node = get_tree().get_first_node_in_group("bite_event_manager")
+		if bite_manager:
+			bite_manager.cancel_pending_bite(owner_peer_id)
+	_notify_cast_cancelled.rpc()
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_cast_cancelled() -> void:
+	state = CastState.IDLE
+	EventBus.cast_failed.emit(&"cancelled", owner_peer_id)  # hides CastMeter same as a rejection
+
+
+## Force this rod back to IDLE regardless of what it was doing -- called
+## when something ELSE interrupts the player (capsizing) rather than a
+## normal cast resolution. Without this, a player mid-charge or mid-wait
+## when the boat capsizes came back from swimming still stuck there, unable
+## to cast again (start_charge() requires state == IDLE) -- "locked into
+## the cast." Not an RPC: EquipmentSlot.stow_rod_for_swim() already runs
+## identically on every peer off the same capsize broadcast (same reasoning
+## as the swim visual pose needing no RPC of its own), so this doesn't
+## either.
+func force_cancel_cast() -> void:
+	if state == CastState.IDLE or state == CastState.BIG_FISH_EVENT:
+		return
+	if state == CastState.WAITING_BITE and multiplayer.is_server():
+		var bite_manager: Node = get_tree().get_first_node_in_group("bite_event_manager")
+		if bite_manager:
+			bite_manager.cancel_pending_bite(owner_peer_id)
+	state = CastState.IDLE
+
+
 func _process(_delta: float) -> void:
 	# Only run for the local owner of this rod.
 	if owner_peer_id == 0 or owner_peer_id != multiplayer.get_unique_id():
@@ -129,6 +179,9 @@ func _process(_delta: float) -> void:
 
 	if Input.is_action_just_released("cast"):
 		release_cast()
+
+	if Input.is_action_just_pressed(&"cancel_cast"):
+		request_cancel_cast()
 
 
 # ── RPC 1: Client → Host ──────────────────────────────────────────────────────

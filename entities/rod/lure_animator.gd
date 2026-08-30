@@ -98,7 +98,11 @@ func _on_arc_complete() -> void:
 	# reel resolves (see _process below) -- doesn't hide here anymore.
 	lure_landed.emit()
 	var rod := get_parent() as Rod
-	if rod:
+	# Only advance state if the rod is still exactly where this tween left
+	# it (ANIMATING) -- something else (a capsize mid-flight, a cancel)
+	# could have already moved it on by the time this callback fires, and
+	# unconditionally stomping back to WAITING_BITE would undo that.
+	if rod and rod.state == Rod.CastState.ANIMATING:
 		rod.state = Rod.CastState.WAITING_BITE
 
 

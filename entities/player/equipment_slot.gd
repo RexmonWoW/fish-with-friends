@@ -110,6 +110,7 @@ func re_equip_rod() -> void:
 
 func stow_rod_for_swim() -> void:
 	if equipped_item is Rod:
+		(equipped_item as Rod).force_cancel_cast()
 		unequip_rod()
 
 
