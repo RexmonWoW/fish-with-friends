@@ -44,6 +44,16 @@ func _ready() -> void:
 	zone.body_entered.connect(_on_body_entered)
 	zone.body_exited.connect(_on_body_exited)
 
+	# A round transition reloads this whole scene, so a fresh Livewell starts
+	# empty on every peer -- RunState restores the host's own copy directly
+	# (see restore_slots below), but that doesn't help other peers: their
+	# Livewell doesn't exist yet at the moment the host would broadcast, the
+	# same RPC-target-not-ready race already hit once for player spawn
+	# registration. Pulling once THIS node genuinely exists sidesteps the
+	# timing question entirely instead of trying to win it.
+	if not multiplayer.is_server():
+		_request_full_sync.rpc_id(1)
+
 
 func _process(_delta: float) -> void:
 	_update_swim_motion()
@@ -90,6 +100,45 @@ func _apply_remove(index: int) -> void:
 
 func is_full() -> bool:
 	return not slots.has(null)
+
+
+## Host-only, no RPC. Repopulates local state directly from a same-day
+## round-transition snapshot (see RunState._persisted_livewell) -- called
+## before any other peer's Livewell exists, so there's nothing to broadcast
+## to yet. Other peers pick this up via _request_full_sync once their own
+## node is ready.
+func restore_slots(persisted: Array) -> void:
+	for i in range(mini(persisted.size(), MAX_SLOTS)):
+		var fish: CaughtFish = persisted[i]
+		if fish != null:
+			slots[i] = fish
+			_spawn_visual(i, fish)
+	EventBus.livewell_updated.emit(self)
+
+
+## Pull-based sync for any peer whose Livewell just came into existence
+## (round transition, or a late join) -- asks the host for the CURRENT full
+## state rather than relying on the host having broadcast at the right
+## moment. Safe to combine with normal add/remove traffic: only fills slots
+## that are still empty locally, never overwrites.
+@rpc("any_peer", "call_local", "reliable")
+func _request_full_sync() -> void:
+	if not multiplayer.is_server():
+		return
+	_apply_full_sync.rpc_id(multiplayer.get_remote_sender_id(), slots, big_fish_slot)
+
+
+@rpc("authority", "reliable")
+func _apply_full_sync(synced_slots: Array, synced_big_fish: CaughtFish) -> void:
+	for i in range(mini(synced_slots.size(), MAX_SLOTS)):
+		var fish: CaughtFish = synced_slots[i]
+		if fish != null and slots[i] == null:
+			slots[i] = fish
+			_spawn_visual(i, fish)
+	if synced_big_fish != null and big_fish_slot == null:
+		big_fish_slot = synced_big_fish
+		_spawn_big_fish_visual(synced_big_fish)
+	EventBus.livewell_updated.emit(self)
 
 
 # ── Big Fish Event's reserved slot ──────────────────────────────────────────────

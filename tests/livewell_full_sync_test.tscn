@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/livewell_full_sync_test.gd" id="1_fullsync"]
+
+[node name="LivewellFullSyncTest" type="Node"]
+script = ExtResource("1_fullsync")

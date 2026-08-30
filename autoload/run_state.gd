@@ -180,9 +180,7 @@ func _restore_livewell() -> void:
 		return
 	var livewell := get_tree().get_first_node_in_group("livewell") as Livewell
 	if livewell != null:
-		for fish in _persisted_livewell:
-			if fish != null:
-				livewell.add_fish(fish)
+		livewell.restore_slots(_persisted_livewell)
 	_persisted_livewell.clear()
 
 
