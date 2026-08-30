@@ -31,8 +31,8 @@ _Standing decisions worth remembering, not a changelog — see Session Log for w
 - GDD gap-check (2026-08-29): everything through MVP item 13 is built except full lobby content, Per-Run Shop, Boat Upgrade, Cosmetics, leaderboard, and non-Lake maps/hazards.
 
 ## Next Up
-- **Needs real 2-machine re-verification**: movement brake + livewell full-sync fixes (pass 27), Big Fish Event trigger rework (pass 28), debug console + sell-every-round (pass 29-30).
-- Big Fish Event / Capsize swim-pose visuals haven't been checked on 2 machines (new replication shape).
+- **2-machine test in progress (pass 31) — movement CONFIRMED working.** Still needs re-verification: livewell full-sync (pass 27), sell-every-round (pass 30), and everything fixed today in pass 31 itself (Big Fish Event lobby-trigger race, disturbance marker, capsize toss/tilt, timer sync, difficulty retune) — real bugs kept surfacing as soon as things became visible/testable, so treat nothing here as done until a clean pass with no new reports.
+- Big Fish Event / Capsize swim-pose visuals still haven't been specifically checked on 2 machines (new replication shape) — every attempt so far has surfaced a different bug before getting this far.
 - "Line doesn't always stay connected during flight" — still open, root cause unconfirmed.
 - Balance placeholder numbers: quota formula constants, Big Fish Event tunables, QTE tunables, livewell swim/look-angle tunables.
 - Known accepted gaps: joining client's RunState totals lag until the next broadcast; BigFishEventManager has no disconnect handling.
@@ -49,7 +49,7 @@ _(needs a call from the planning chat)_
 - **Economy model**: GDD wants personal wallets + a shared fund; implementation has one shared pot. Needs a decision before the Per-Run Shop is built.
 - **"Free days" from quota banking**: confirm whether a big early haul clearing a future day's quota with zero new catches is intended.
 - **Quota balancing**: formula itself resolved (2026-08-29); `BASE_QUOTA`/`1.15`/`0.4` are still placeholder numbers.
-- **Big Fish Event tunables**: join radius/duration/miss-penalties still placeholder. Trigger *timing* resolved 2026-08-30 (once per day, end of final round).
+- **Big Fish Event tunables**: join radius/duration/miss-penalties still placeholder; climb speed/QTE cadence retuned 2026-08-30 (was solvable by pure hold, no real challenge), still needs real playtesting to dial in further. Trigger *timing* resolved 2026-08-30 (once per day, end of final round).
 - **Big Fish Event credit**: a shared catch is credited to "The Crew" rather than one participant — confirm that's right, especially once a leaderboard exists.
 - **Fun idea, not scheduled**: a challenge mode combining every map's hazard at once, once all maps exist.
 
@@ -91,3 +91,4 @@ _(one line per session)_
 - 2026-08-30 (28th pass) — Reworked the Big Fish Event to trigger once per day (end of final round) instead of randomly, per planning.
 - 2026-08-30 (29th pass) — Added a debug console (`skip_round`/`skip_day`/`set_time`) for faster playtesting; condensed this file's history down to one line per entry.
 - 2026-08-30 (30th pass) — Playtest feedback: fixed an invisible debug console (no background panel) and a Big Fish Event banner stuck on screen (hardcoded 999999s duration); reworked selling to happen at the end of every round, not just day's end, per direction.
+- 2026-08-30 (31st pass, 2-machine test in progress) — Movement confirmed working. Found and fixed real bugs as things became visible for the first time: Big Fish Event could trigger during the round-1-to-lobby transition (round_number/timer race before the scene actually clears), no world marker ever existed at the disturbance spot, capsized players were stuck on the boat deck instead of in the water (no toss, plus the Hull's own collision blocked them), and set_time didn't sync the displayed round timer. Also retuned the Big Fish Event's climb/QTE pacing (was winnable by pure hold, no real challenge) and added a simple boat-tilt visual on capsize.
