@@ -14,12 +14,14 @@ extends Node
 ## clear it by, so one big haul doesn't buy several free days. BASE_QUOTA
 ## and the 1.15/0.4 constants are GDD's own placeholders, still pending
 ## real balancing.
-## Fish are "sold" (converted to money) only at end of day, matching
-## CaughtFish's own doc comment -- the livewell is shared across both
-## rounds of a day, not cleared between them.
+## Fish sell at the end of EVERY round now, not just at day's end -- heading
+## back to shore between rounds, per direction 2026-08-30 (previously the
+## livewell carried unsold fish from round 1 into round 2). The quota
+## pass/fail check still only happens once both rounds of a day are banked.
 
 signal round_started(round_number: int, day_number: int, duration_seconds: float)
 signal round_ended(round_number: int, day_number: int)
+signal round_sold(round_number: int, day_number: int, earned: int, total_money: int)
 signal day_summary(day_number: int, earned: int, total_money: int, quota: int, passed: bool)
 signal run_over(final_day: int, final_money: int)
 
@@ -40,16 +42,7 @@ var current_quota: int = 0
 
 var _time_remaining: float = 0.0
 var _round_active: bool = false  ## host-only: is the round timer actually ticking
-
-## Host-only. A round transition within the same day (round 1 -> round 2)
-## still reloads the whole Lake scene -- including the Livewell -- via the
-## same _clear_world()/_load_map() NetworkManager uses for every map swap.
-## Without this, a catch from round 1 would silently vanish the moment
-## round 2 loads a fresh (empty) Livewell, contradicting "shared across
-## both rounds of a day, not cleared between them." Snapshotted right
-## before a same-day transition, restored once the next round's Livewell
-## exists.
-var _persisted_livewell: Array = []
+var _day_earned_so_far: int = 0  ## sum of each round's sale within the current day, reported in day_summary
 
 
 func _process(delta: float) -> void:
@@ -69,13 +62,13 @@ func reset_for_new_run() -> void:
 	total_money_earned = 0
 	current_quota = _compute_day1_quota()
 	_round_active = false
+	_day_earned_so_far = 0
 
 
 ## Host-only. Called once the lake finishes loading for a round.
 func start_round() -> void:
 	if not multiplayer.is_server():
 		return
-	_restore_livewell()
 	_time_remaining = ROUND_DURATION_SECONDS
 	_round_active = true
 	_notify_round_started.rpc(round_number, day_number, ROUND_DURATION_SECONDS, current_quota)
@@ -92,19 +85,26 @@ func _notify_round_started(r: int, d: int, duration: float, quota: int) -> void:
 func _end_round() -> void:
 	_notify_round_ended.rpc(round_number, day_number)
 
+	# Sell whatever's in the livewell every round -- heading back to shore --
+	# and bank it immediately. The quota pass/fail check still only happens
+	# once both rounds of a day are in, below.
+	var earned := _sell_all_livewells()
+	total_money_earned += earned
+	_day_earned_so_far += earned
+
 	if round_number < ROUNDS_PER_DAY:
+		var finished_round := round_number
 		round_number += 1
-		_snapshot_livewell()
+		_notify_round_sold.rpc(finished_round, day_number, earned, total_money_earned)
 		NetworkManager.return_to_lobby_between_rounds()
 		return
 
-	# Day complete -- sell everything in the livewell(s), tally against quota.
-	var earned := _sell_all_livewells()
-	total_money_earned += earned
+	var day_earned := _day_earned_so_far
+	_day_earned_so_far = 0
 	var passed := total_money_earned >= current_quota
 	var finished_day := day_number
 
-	_notify_day_summary.rpc(finished_day, earned, total_money_earned, current_quota, passed)
+	_notify_day_summary.rpc(finished_day, day_earned, total_money_earned, current_quota, passed)
 
 	if passed:
 		var surplus := maxi(total_money_earned - current_quota, 0)
@@ -119,6 +119,12 @@ func _end_round() -> void:
 @rpc("authority", "call_local", "reliable")
 func _notify_round_ended(r: int, d: int) -> void:
 	round_ended.emit(r, d)
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_round_sold(r: int, d: int, earned: int, total: int) -> void:
+	total_money_earned = total
+	round_sold.emit(r, d, earned, total)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -170,20 +176,6 @@ func _sell_all_livewells() -> int:
 	return earned
 
 
-func _snapshot_livewell() -> void:
-	var livewell := get_tree().get_first_node_in_group("livewell") as Livewell
-	_persisted_livewell = livewell.slots.duplicate() if livewell else []
-
-
-func _restore_livewell() -> void:
-	if _persisted_livewell.is_empty():
-		return
-	var livewell := get_tree().get_first_node_in_group("livewell") as Livewell
-	if livewell != null:
-		livewell.restore_slots(_persisted_livewell)
-	_persisted_livewell.clear()
-
-
 # ── Debug console (testing only) ────────────────────────────────────────────────
 ## Fast-forwarding for playtests -- e.g. the Big Fish Event only triggers in
 ## the last ~90s of the day's second round (BigFishEventManager), otherwise
@@ -204,9 +196,8 @@ func debug_set_time_remaining(seconds: float) -> void:
 
 ## Ends the current round; if that was round 1, walks through the same
 ## NetworkManager.request_start_round() a player triggers at the lobby's
-## StartTrigger so round 2 actually loads for real (livewell persistence
-## and everything else included) instead of skipping the transition, then
-## ends round 2 too.
+## StartTrigger so round 2 actually loads for real instead of skipping the
+## transition, then ends round 2 too.
 func debug_skip_day() -> void:
 	if not multiplayer.is_server() or not _round_active:
 		return

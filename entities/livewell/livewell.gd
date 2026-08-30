@@ -102,20 +102,6 @@ func is_full() -> bool:
 	return not slots.has(null)
 
 
-## Host-only, no RPC. Repopulates local state directly from a same-day
-## round-transition snapshot (see RunState._persisted_livewell) -- called
-## before any other peer's Livewell exists, so there's nothing to broadcast
-## to yet. Other peers pick this up via _request_full_sync once their own
-## node is ready.
-func restore_slots(persisted: Array) -> void:
-	for i in range(mini(persisted.size(), MAX_SLOTS)):
-		var fish: CaughtFish = persisted[i]
-		if fish != null:
-			slots[i] = fish
-			_spawn_visual(i, fish)
-	EventBus.livewell_updated.emit(self)
-
-
 ## Pull-based sync for any peer whose Livewell just came into existence
 ## (round transition, or a late join) -- asks the host for the CURRENT full
 ## state rather than relying on the host having broadcast at the right
