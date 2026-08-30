@@ -38,6 +38,13 @@ var _swim_visual_active: bool = false
 @export var move_force: float          = 1600.0
 @export var max_speed: float           = 5.0
 @export var jump_force: float          = 400.0
+## Horizontal speed removed per second once movement input stops (units/s²).
+## The low surface friction that fixed the original "stuck against the
+## boat" bug means passive linear_damp alone only asymptotically approaches
+## a stop, never really arriving -- read as "sliding everywhere." This is a
+## dedicated, independent brake so stopping and accelerating can be tuned
+## separately instead of fighting over the same linear_damp value.
+@export var brake_deceleration: float  = 12.0
 
 
 func _ready() -> void:
@@ -219,6 +226,7 @@ func _get_move_direction() -> Vector3:
 
 func _apply_movement_impulse(direction: Vector3, delta: float) -> void:
 	if direction == Vector3.ZERO:
+		_apply_braking(delta)
 		return
 
 	apply_central_impulse(direction * move_force * delta)
@@ -228,6 +236,24 @@ func _apply_movement_impulse(direction: Vector3, delta: float) -> void:
 	if horiz.length() > max_speed:
 		horiz = horiz.normalized() * max_speed
 		linear_velocity = Vector3(horiz.x, linear_velocity.y, horiz.y)
+
+
+## Actively brings horizontal velocity to a stop at a fixed rate once
+## movement input releases -- see brake_deceleration's doc comment for why
+## this exists instead of just leaning on linear_damp. Y velocity (gravity,
+## a jump in progress) is untouched.
+func _apply_braking(delta: float) -> void:
+	var horiz := Vector2(linear_velocity.x, linear_velocity.z)
+	var speed := horiz.length()
+	if speed < 0.05:
+		linear_velocity.x = 0.0
+		linear_velocity.z = 0.0
+		return
+
+	var new_speed := maxf(speed - brake_deceleration * delta, 0.0)
+	var new_horiz := horiz.normalized() * new_speed
+	linear_velocity.x = new_horiz.x
+	linear_velocity.z = new_horiz.y
 
 
 func _soft_follow_body_yaw(delta: float) -> void:
