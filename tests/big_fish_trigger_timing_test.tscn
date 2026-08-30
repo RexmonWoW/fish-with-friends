@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/big_fish_trigger_timing_test.gd" id="1_triggertiming"]
+
+[node name="BigFishTriggerTimingTest" type="Node"]
+script = ExtResource("1_triggertiming")

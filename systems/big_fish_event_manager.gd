@@ -1,8 +1,10 @@
 class_name BigFishEventManager
 extends Node
 
-## Host-authoritative. GDD Big Fish Event (Lake map only): random chance to
-## trigger during a round; a ready-check window where players cast at the
+## Host-authoritative. GDD Big Fish Event (Lake map only -- Lake's signature
+## hazard): triggers once per day, in the final stretch of the day's second
+## (last) round, rather than a random per-round roll -- a climactic capstone
+## to the day. From there: a ready-check window where players cast at the
 ## shaking spot to join; then a shared minigame -- hold to rise, periodic
 ## QTEs, a miss hurts everyone (bigger hit to whoever missed, smaller
 ## shared hit to the rest), a soft-max band that has to be held for a
@@ -11,13 +13,16 @@ extends Node
 ## biggest (by value) livewell fish and capsizes the boat for real
 ## (CapsizeManager, built earlier this session).
 ##
-## Placeholder tunables below (trigger frequency, join radius, event
+## Placeholder tunables below (final-stretch window, join radius, event
 ## duration, miss penalties, soft-max band/hold time) aren't specified
 ## precisely in GDD -- reasonable starting points, flagged in PROGRESS.md
 ## for real balancing.
 
-const CHECK_INTERVAL: float = 30.0     ## how often to roll for a trigger
-const TRIGGER_CHANCE: float = 0.08     ## probability per check
+## How long before the day's final round ends the event triggers --
+## comfortably covers READY_CHECK_DURATION + EVENT_TIME_LIMIT (63s worst
+## case) so a full attempt always has room to finish before the round
+## itself ends and reloads the scene out from under it.
+const FINAL_STRETCH_SECONDS: float = 90.0
 const READY_CHECK_DURATION: float = 18.0  ## GDD: placeholder ~15-20s
 const JOIN_RADIUS: float = 4.0         ## how close a cast must land to the spot
 const EVENT_TIME_LIMIT: float = 45.0   ## overall time limit once active
@@ -46,7 +51,11 @@ enum Phase { INACTIVE, READY_CHECK, ACTIVE }
 var _phase: Phase = Phase.INACTIVE
 var _target_spot: Vector3 = Vector3.ZERO
 var _phase_timer: float = 0.0
-var _next_check_timer: float = CHECK_INTERVAL
+## Guards against firing again later in the same final round once this
+## round's event has already resolved -- a fresh Lake (and fresh instance of
+## this manager) loads for every round anyway, so this doesn't need to
+## track the day itself, just "already happened this round."
+var _already_triggered: bool = false
 var _participants: Dictionary = {}  ## peer_id (int) -> Dictionary of bar/QTE state
 var _center: Vector3 = Vector3.ZERO  ## where ready-check spots roll around -- set via setup()
 
@@ -73,11 +82,7 @@ func _process(delta: float) -> void:
 
 	match _phase:
 		Phase.INACTIVE:
-			_next_check_timer -= delta
-			if _next_check_timer <= 0.0:
-				_next_check_timer = CHECK_INTERVAL
-				if randf() < TRIGGER_CHANCE:
-					_start_ready_check()
+			_maybe_trigger()
 		Phase.READY_CHECK:
 			_phase_timer -= delta
 			if _phase_timer <= 0.0:
@@ -91,23 +96,39 @@ func _is_round_active() -> bool:
 	return map != null and map.map_id == &"lake"
 
 
-func _start_ready_check() -> void:
+## Only fires once per round -- GDD: once per day, in the final stretch of
+## the day's second (last) round. Doesn't mark itself triggered until
+## _start_ready_check() actually succeeds, so a bad-luck water probe just
+## gets retried next frame instead of losing the day's event entirely.
+func _maybe_trigger() -> void:
+	if _already_triggered:
+		return
+	if RunState.round_number != RunState.ROUNDS_PER_DAY:
+		return
+	if RunState._time_remaining > FINAL_STRETCH_SECONDS:
+		return
+	if _start_ready_check():
+		_already_triggered = true
+
+
+func _start_ready_check() -> bool:
 	var map := NetworkManager.get_current_map()
 	if map == null:
-		return
+		return false
 	# Somewhere in open water, well past the boat's own footprint.
 	var angle := randf() * TAU
 	var radius := randf_range(8.0, 15.0)
 	var probe := _center + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
 	var water_point: Variant = WaterValidator.find_water_point(probe, map)
 	if water_point == null:
-		return  # bad luck this check, try again next interval
+		return false  # bad luck this probe, retried next frame
 
 	_target_spot = water_point
 	_participants.clear()
 	_phase = Phase.READY_CHECK
 	_phase_timer = READY_CHECK_DURATION
 	_notify_ready_check_started.rpc(_target_spot, READY_CHECK_DURATION)
+	return true
 
 
 ## Called by BiteEventManager's cast_landed handler BEFORE it schedules a

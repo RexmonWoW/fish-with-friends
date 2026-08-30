@@ -7,8 +7,9 @@ extends Node
 ## in the event resolves as a success -- big fish lands in the reserved
 ## slot with the 3x value multiplier, rod's back to normal.
 ##
-## Bypasses the random trigger timer (_start_ready_check() called directly)
-## same as other tests reach into host-internal state for determinism.
+## Bypasses the once-per-day final-stretch trigger (_start_ready_check()
+## called directly) same as other tests reach into host-internal state for
+## determinism.
 
 ## Members, not locals -- GDScript lambdas capture local variables BY
 ## VALUE, so a lambda assigning to a local flag would silently mutate its
