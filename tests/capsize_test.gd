@@ -4,7 +4,10 @@ extends Node
 ## capsize scales required corners to player count, swimming blocks normal
 ## rod casting, claiming a corner needs real proximity, one corner per
 ## player and one player per corner, and claiming enough corners resolves
-## it -- swimming turns back off for everyone.
+## it -- swimming turns back off for everyone. Also covers CapsizeManager
+## actually tossing the local player off the boat into the water (added
+## 2026-08-30 -- playtest report: capsizing left a player stuck on the
+## boat deck, swim mode on but blocked by the Hull's own collision).
 
 var _started_required: int = -1
 var _claim_events: Array = []  # [corner_index, peer_id, claimed_count, required]
@@ -72,6 +75,18 @@ func _on_local_player_spawned(player1: Player) -> void:
 		get_tree().quit(1)
 		return
 	print("Local player is swimming.")
+
+	# Free-swim physics alone doesn't help if the player's still sitting on
+	# the boat deck, blocked by its collision -- "capsized but can't move."
+	# Confirm they actually got tossed clear of the boat, not just
+	# switched to swim mode in place.
+	var boat_center: Vector3 = capsize_manager._boat_center()
+	var boat_radius: float = capsize_manager._boat_radius()
+	if boat_center.distance_to(player1.global_position) <= boat_radius:
+		print("FAIL: local player is still within the boat's radius after capsizing -- not actually in the water")
+		get_tree().quit(1)
+		return
+	print("Local player tossed clear of the boat into the water.")
 
 	# Rod should be stowed to the back (an empty, same as while holding a
 	# fish), not left sitting visibly in-hand while swimming.

@@ -76,6 +76,48 @@ func _notify_capsize_started(required: int) -> void:
 	var local_player: Player = NetworkManager.spawned_players.get(multiplayer.get_unique_id())
 	if local_player:
 		local_player.enter_swim_physics()
+		_toss_into_water(local_player)
+
+
+## Free-swim physics alone isn't enough -- a player capsized while standing
+## on the boat deck just sits there unable to move, blocked by the Hull's
+## own collision (reported as "can't move, you're just on the ground
+## sideways"). Repositions the LOCAL player only, same as
+## NetworkManager._reposition_local_player() -- movement is client-
+## authoritative per player, so the host can't move someone else's player
+## and have it stick. Pushed radially outward from the boat's center (where
+## they already happen to be standing relative to it), not toward any
+## specific point -- simple and direction-agnostic works for any trigger,
+## not just the Big Fish Event.
+func _toss_into_water(player: Player) -> void:
+	var center := _boat_center()
+	var away := player.global_position - center
+	away.y = 0.0
+	if away.length_squared() < 0.01:
+		away = Vector3.FORWARD
+	away = away.normalized()
+
+	var probe := center + away * (_boat_radius() + 4.0)
+	var map := NetworkManager.get_current_map()
+	var water_point: Variant = WaterValidator.find_water_point(probe, map)
+	player.global_position = water_point if water_point != null else probe
+
+
+func _boat_center() -> Vector3:
+	if _corner_markers.is_empty():
+		return Vector3.ZERO
+	var sum := Vector3.ZERO
+	for marker in _corner_markers:
+		sum += (marker as Marker3D).global_position
+	return sum / _corner_markers.size()
+
+
+func _boat_radius() -> float:
+	var center := _boat_center()
+	var max_dist := 0.0
+	for marker in _corner_markers:
+		max_dist = maxf(max_dist, center.distance_to((marker as Marker3D).global_position))
+	return max_dist
 
 
 func request_claim_corner(corner_index: int) -> void:
