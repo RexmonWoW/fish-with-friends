@@ -51,6 +51,10 @@ func _is_owner_swimming() -> bool:
 func _on_line_area_entered(other_area: Area3D) -> void:
 	if not multiplayer.is_server():
 		return
+	_try_start_tangle_with(other_area)
+
+
+func _try_start_tangle_with(other_area: Area3D) -> void:
 	var other_rod := other_area.get_parent() as Rod
 	if other_rod == null or other_rod == self:
 		return
@@ -61,6 +65,25 @@ func _on_line_area_entered(other_area: Area3D) -> void:
 	var tangle_manager: Node = get_tree().get_first_node_in_group("tangle_manager")
 	if tangle_manager:
 		tangle_manager.start_tangle(owner_peer_id, other_rod.owner_peer_id)
+
+
+## Called by LureAnimator right as this rod transitions into WAITING_BITE.
+## The one-shot area_entered signal above only fires on transitioning INTO
+## overlap -- if the lines started overlapping earlier, while one or both
+## rods were still ANIMATING (mid-flight, a real possibility now that the
+## line's collision radius is generous rather than razor-thin), that
+## "entered" event fired and got correctly rejected (not WAITING_BITE yet),
+## but nothing re-checks once it actually WOULD pass, since the areas are
+## already touching and no NEW "entered" event ever fires. Explicitly
+## re-checking current overlaps here closes that gap.
+func check_line_overlaps_for_tangle() -> void:
+	if not multiplayer.is_server():
+		return
+	var collider := get_node_or_null("LineCollider") as Area3D
+	if collider == null:
+		return
+	for area in collider.get_overlapping_areas():
+		_try_start_tangle_with(area)
 
 
 func _on_tangle_resolved(_winner_peer_id: int, loser_peer_id: int) -> void:

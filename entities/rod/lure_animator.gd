@@ -104,6 +104,10 @@ func _on_arc_complete() -> void:
 	# unconditionally stomping back to WAITING_BITE would undo that.
 	if rod and rod.state == Rod.CastState.ANIMATING:
 		rod.state = Rod.CastState.WAITING_BITE
+		# The lines may have already been overlapping mid-flight (this
+		# rod's own area_entered fired then, correctly ignored since state
+		# wasn't WAITING_BITE yet) -- re-check now that it actually counts.
+		rod.check_line_overlaps_for_tangle()
 
 
 func _process(_delta: float) -> void:
@@ -175,7 +179,12 @@ func _update_line_collider(from_pos: Vector3, to_pos: Vector3) -> void:
 	var shape_node := collider.get_node("CollisionShape3D") as CollisionShape3D
 	var capsule := shape_node.shape as CapsuleShape3D
 	capsule.height = length
-	capsule.radius = 0.05
+	# Playtest: "very hard to tangle your line with someone else's" -- the
+	# line itself renders razor-thin, but detection doesn't need to match
+	# that; this radius is purely a gameplay generosity knob, no visual
+	# downside to widening it. Was 0.05 (two lines needed to cross within
+	# 10cm combined to register at all).
+	capsule.radius = 0.4
 
 	# Orient so local Y (CapsuleShape3D's long axis) points along the line.
 	var y_axis := diff.normalized()
