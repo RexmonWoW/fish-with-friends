@@ -15,7 +15,7 @@ Live status file. GDD.md is the plan; this is where things actually stand. Updat
 10. [x] Capsize minigame — built, triggered by a failed Big Fish Event.
 11. [~] Walkable lobby — bare-bones room + start trigger only. Real shop/mirror/trophy case not started.
 12. [x] Round timer + day structure.
-13. [x] Quota system — adaptive daily-growth formula in place, numbers still placeholder (Open Questions).
+13. [x] Quota system — sells and banks the livewell at the end of every round now (not just day's end); quota pass/fail still only checked at day's end. Formula numbers still placeholder (Open Questions).
 
 ## Infrastructure in progress
 - Networking (GodotSteam P2P) — **confirmed working on 2 machines**, after several spawn/registration bugs found and fixed early on (see git log if you need the detail).
@@ -31,7 +31,7 @@ _Standing decisions worth remembering, not a changelog — see Session Log for w
 - GDD gap-check (2026-08-29): everything through MVP item 13 is built except full lobby content, Per-Run Shop, Boat Upgrade, Cosmetics, leaderboard, and non-Lake maps/hazards.
 
 ## Next Up
-- **Needs real 2-machine re-verification**: movement brake + livewell full-sync fixes (pass 27), Big Fish Event trigger rework (pass 28), debug console (pass 29).
+- **Needs real 2-machine re-verification**: movement brake + livewell full-sync fixes (pass 27), Big Fish Event trigger rework (pass 28), debug console + sell-every-round (pass 29-30).
 - Big Fish Event / Capsize swim-pose visuals haven't been checked on 2 machines (new replication shape).
 - "Line doesn't always stay connected during flight" — still open, root cause unconfirmed.
 - Balance placeholder numbers: quota formula constants, Big Fish Event tunables, QTE tunables, livewell swim/look-angle tunables.
@@ -85,3 +85,4 @@ _(one line per session)_
 - 2026-08-29 (27th pass) — 2-machine playtest: fixed movement sliding and a livewell cross-peer desync bug; confirmed per-round quota behavior was correct as designed.
 - 2026-08-30 (28th pass) — Reworked the Big Fish Event to trigger once per day (end of final round) instead of randomly, per planning.
 - 2026-08-30 (29th pass) — Added a debug console (`skip_round`/`skip_day`/`set_time`) for faster playtesting; condensed this file's history down to one line per entry.
+- 2026-08-30 (30th pass) — Playtest feedback: fixed an invisible debug console (no background panel) and a Big Fish Event banner stuck on screen (hardcoded 999999s duration); reworked selling to happen at the end of every round, not just day's end, per direction.
