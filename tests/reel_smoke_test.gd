@@ -17,6 +17,7 @@ func _ready() -> void:
 	EventBus.bite_started.connect(func(fish_data, pid): print("bite_started species=%s peer=%d" % [fish_data.species_id, pid]))
 	EventBus.reel_finished.connect(func(success, pid): print("reel_finished success=%s peer=%d" % [success, pid]))
 	EventBus.cast_landed.connect(func(endpoint, flight, pid): print("cast_landed peer=", pid))
+	EventBus.bite_hook_window_opened.connect(_on_hook_window_opened)
 
 	NetworkManager.spawned_local_player.connect(_on_local_player_spawned)
 	NetworkManager.host_lobby()
@@ -46,10 +47,12 @@ func _on_local_player_spawned(player: Player) -> void:
 	await get_tree().create_timer(0.3).timeout
 	rod.release_cast()
 
-	# Flight (0.5s) + BITE_DELAY (2.0s) + margin.
-	print("Waiting for bite...")
+	# GDD Bite Detection: a shadow approaches (SHADOW_APPROACH_SECONDS) and
+	# strikes before the hook-set window even opens -- _on_hook_window_opened
+	# sets the hook immediately once it does, same as a player reacting fast.
+	print("Waiting for a shadow to strike and the hook-set window to open...")
 	var waited := 0.0
-	while rod.state != Rod.CastState.REELING and waited < 5.0:
+	while rod.state != Rod.CastState.REELING and waited < 8.0:
 		await get_tree().process_frame
 		waited += get_process_delta_time()
 
@@ -130,3 +133,11 @@ func _on_local_player_spawned(player: Player) -> void:
 
 	print("--- Reel smoke test PASSED ---")
 	get_tree().quit()
+
+
+func _on_hook_window_opened(caster_peer_id: int, _duration: float) -> void:
+	if caster_peer_id != 1:
+		return
+	var bite_manager := get_tree().get_first_node_in_group("bite_event_manager")
+	if bite_manager:
+		bite_manager.request_hook_set()

@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/bite_detection_test.gd" id="1_bitedetect"]
+
+[node name="BiteDetectionTest" type="Node"]
+script = ExtResource("1_bitedetect")

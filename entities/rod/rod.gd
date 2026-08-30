@@ -24,10 +24,19 @@ var is_equipped: bool = true
 ## looking around near the livewell) doesn't also fire the rod.
 var _near_livewell: bool = false
 
+## True while THIS rod's owner has an open hook-set window (GDD Bite
+## Detection -- a shadow just struck, press "cast" within a short window to
+## set the hook). Set/cleared by BiteEventManager's broadcasts, gated to
+## this rod's own owner since every peer mirrors every rod.
+var _hook_window_open: bool = false
+
 
 func _ready() -> void:
 	EventBus.livewell_proximity_changed.connect(_on_livewell_proximity_changed)
 	EventBus.tangle_resolved.connect(_on_tangle_resolved)
+	EventBus.bite_hook_window_opened.connect(_on_hook_window_opened)
+	EventBus.bite_hook_window_missed.connect(_on_hook_window_closed)
+	EventBus.bite_started.connect(_on_hook_window_closed_from_bite)
 
 	# Not owner-gated -- detection must fire for every peer's local mirror of
 	# every rod (same reasoning as LureAnimator's line-collider tracking).
@@ -38,6 +47,20 @@ func _ready() -> void:
 
 func _on_livewell_proximity_changed(_livewell: Livewell, in_range: bool) -> void:
 	_near_livewell = in_range
+
+
+func _on_hook_window_opened(caster_peer_id: int, _duration: float) -> void:
+	if caster_peer_id == owner_peer_id:
+		_hook_window_open = true
+
+
+func _on_hook_window_closed(caster_peer_id: int) -> void:
+	if caster_peer_id == owner_peer_id:
+		_hook_window_open = false
+
+
+func _on_hook_window_closed_from_bite(_fish_data: FishData, caster_peer_id: int) -> void:
+	_on_hook_window_closed(caster_peer_id)
 
 
 func _is_owner_swimming() -> bool:
@@ -198,7 +221,15 @@ func _process(_delta: float) -> void:
 		EventBus.cast_charge_updated.emit(current_power, owner_peer_id)
 
 	if Input.is_action_just_pressed("cast"):
-		start_charge()
+		# GDD Bite Detection: a shadow struck and the hook-set window is
+		# open -- same button as casting itself, reused rather than a new
+		# binding, since start_charge() is already a no-op outside IDLE.
+		if state == CastState.WAITING_BITE and _hook_window_open:
+			var bite_manager: Node = get_tree().get_first_node_in_group("bite_event_manager")
+			if bite_manager:
+				bite_manager.request_hook_set()
+		else:
+			start_charge()
 
 	if Input.is_action_just_released("cast"):
 		release_cast()

@@ -1,12 +1,19 @@
 class_name BiteEventManager
 extends Node
 
-## Host-authoritative. Owns the bite event lifecycle.
-## Listens for cast_landed, waits flight_seconds + bite_delay,
-## spawns a Fish entity, broadcasts bite_started to every peer.
-## Minigame Logic owns the reel trigger — this script stops at the signal.
+## Host-authoritative. Owns the bite event lifecycle (GDD Bite Detection):
+## fish swim visibly as shadows instead of biting on an invisible timer. A
+## shadow approaches the landed bobber and strikes; the player presses to
+## set the hook in a short window. Miss it and the fish spooks off, another
+## rolls in after a pause. Hook-set success drops into the existing Reel
+## Mechanic exactly as before -- this rework only changes what happens
+## BEFORE bite_started fires, not what happens after.
 
-const BITE_DELAY: float = 2.0  # placeholder — real roll belongs to Minigame Logic
+const SHADOW_APPROACH_SECONDS: float = 2.5  ## time for a shadow to reach the bobber
+const HOOK_WINDOW_SECONDS: float = 1.0      ## how long the player has to set the hook once struck
+const SPOOK_PAUSE_SECONDS: float = 1.5      ## pause before another shadow rolls in after a miss
+const SHADOW_SPAWN_MIN_DIST: float = 3.0
+const SHADOW_SPAWN_MAX_DIST: float = 6.0
 
 ## Assign res://entities/fish/fish.tscn in the inspector.
 @export var fish_scene: PackedScene
@@ -15,8 +22,25 @@ const BITE_DELAY: float = 2.0  # placeholder — real roll belongs to Minigame L
 ## SpawnPool uses it to filter valid species.
 var current_map_id: StringName = &""
 
-## In-flight timers keyed by caster_peer_id so re-casts cancel the previous bite.
-var _pending: Dictionary = {}  # int → Timer
+## True while a caster has an in-flight bite attempt (shadow approaching,
+## or waiting on a hook-set window) -- same name/shape tests already poke
+## directly (e.g. "a normal bite got scheduled anyway"), just no longer
+## backed by literal Timer objects now that the sequence spans multiple
+## stages via an awaited coroutine.
+var _pending: Dictionary = {}  # int → true
+
+## Bumped every time a new sequence starts for a peer; an in-flight
+## _run_bite_sequence() call checks its own captured id against this after
+## every await and quietly stops if they no longer match -- the same
+## "only proceed if nothing else already moved this on" guard used
+## elsewhere in this codebase (e.g. LureAnimator._on_arc_complete).
+var _sequence_id: Dictionary = {}  # int → int
+var _next_sequence_id: int = 0
+
+## True while a hook-set window is currently open for that peer --
+## request_hook_set() only counts while this is true.
+var _hook_open: Dictionary = {}  # int → bool
+var _hook_set: Dictionary = {}  # int → bool, set by a successful request_hook_set()
 
 ## Fish currently on someone's line, keyed by caster_peer_id.
 var _active_fish: Dictionary = {}  # int → Fish
@@ -41,26 +65,107 @@ func _on_cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: i
 		return
 
 	_cancel_pending(caster_peer_id)
-
-	var timer := Timer.new()
-	timer.one_shot = true
-	timer.wait_time = flight_seconds + BITE_DELAY
-	add_child(timer)
-	timer.timeout.connect(func() -> void:
-		_fire_bite(endpoint, caster_peer_id)
-		_pending.erase(caster_peer_id)
-		timer.queue_free()
-	)
-	_pending[caster_peer_id] = timer
-	timer.start()
+	_run_bite_sequence(caster_peer_id, endpoint, flight_seconds)
 
 
-func _fire_bite(endpoint: Vector3, caster_peer_id: int) -> void:
-	var fish_data: FishData = SpawnPool.roll_species(current_map_id)
-	if fish_data == null:
-		push_warning("BiteEventManager: SpawnPool returned null for map '%s'" % current_map_id)
+## One cast's full bite sequence, host-only: wait for the lure to actually
+## land, then cycle shadow-approaches-and-strikes / hook-set-window
+## attempts until the player successfully sets the hook (-> the existing
+## bite_started/reel flow, unchanged) or the sequence is canceled some
+## other way (recast, tangle loss, disconnect -- _cancel_pending() bumps
+## _sequence_id so this just quietly stops mattering).
+func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: float) -> void:
+	var my_sequence := _next_sequence_id
+	_next_sequence_id += 1
+	_sequence_id[caster_peer_id] = my_sequence
+	_pending[caster_peer_id] = true
+
+	await get_tree().create_timer(flight_seconds).timeout
+	if _sequence_id.get(caster_peer_id, -1) != my_sequence:
 		return
 
+	var spawner: Node = get_tree().get_first_node_in_group("visual_fish_spawner")
+
+	while true:
+		var species: FishData = SpawnPool.roll_species(current_map_id)
+		if species == null:
+			push_warning("BiteEventManager: SpawnPool returned null for map '%s'" % current_map_id)
+			_pending.erase(caster_peer_id)
+			return
+
+		if spawner:
+			var angle := randf() * TAU
+			var dist := randf_range(SHADOW_SPAWN_MIN_DIST, SHADOW_SPAWN_MAX_DIST)
+			var start_pos := endpoint + Vector3(cos(angle), 0.0, sin(angle)) * dist
+			spawner.spawn_shadow(caster_peer_id, species, start_pos, endpoint, SHADOW_APPROACH_SECONDS)
+
+		await get_tree().create_timer(SHADOW_APPROACH_SECONDS).timeout
+		if _sequence_id.get(caster_peer_id, -1) != my_sequence:
+			return
+
+		# Struck -- open the hook-set window and wait for either a
+		# successful request_hook_set() or the window running out,
+		# whichever comes first. Polled per-frame rather than a flat
+		# await so a press near the start of the window resolves
+		# immediately instead of sitting through the whole thing.
+		_hook_open[caster_peer_id] = true
+		_hook_set[caster_peer_id] = false
+		_notify_hook_window.rpc(caster_peer_id, HOOK_WINDOW_SECONDS)
+
+		var elapsed := 0.0
+		while elapsed < HOOK_WINDOW_SECONDS and not _hook_set.get(caster_peer_id, false):
+			await get_tree().process_frame
+			elapsed += get_process_delta_time()
+			if _sequence_id.get(caster_peer_id, -1) != my_sequence:
+				return
+
+		_hook_open[caster_peer_id] = false
+
+		if _hook_set.get(caster_peer_id, false):
+			if spawner:
+				spawner.despawn_shadow(caster_peer_id, false)
+			_pending.erase(caster_peer_id)
+			_fire_bite(endpoint, caster_peer_id, species)
+			return
+
+		# Missed -- spook off, brief pause, another shadow rolls in.
+		if spawner:
+			spawner.despawn_shadow(caster_peer_id, true)
+		_notify_hook_missed.rpc(caster_peer_id)
+
+		await get_tree().create_timer(SPOOK_PAUSE_SECONDS).timeout
+		if _sequence_id.get(caster_peer_id, -1) != my_sequence:
+			return
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_hook_window(caster_peer_id: int, duration: float) -> void:
+	EventBus.bite_hook_window_opened.emit(caster_peer_id, duration)
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_hook_missed(caster_peer_id: int) -> void:
+	EventBus.bite_hook_window_missed.emit(caster_peer_id)
+
+
+## Called by Rod (any peer, host validates the sender) when the local
+## player presses during their own open hook-set window.
+func request_hook_set() -> void:
+	_request_hook_set.rpc()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_hook_set() -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	var peer_id := 1 if sender == 0 else sender
+	if not _hook_open.get(peer_id, false):
+		return  # too early, too late, or never opened -- silently ignored
+	_hook_set[peer_id] = true
+
+
+func _fire_bite(endpoint: Vector3, caster_peer_id: int, fish_data: FishData) -> void:
 	if fish_scene == null:
 		push_error("BiteEventManager: fish_scene not assigned in inspector.")
 		return
@@ -84,17 +189,27 @@ func _notify_bite(fish_data: FishData, caster_peer_id: int) -> void:
 
 
 func _cancel_pending(caster_peer_id: int) -> void:
-	if _pending.has(caster_peer_id):
-		var t: Timer = _pending[caster_peer_id]
-		t.queue_free()
-		_pending.erase(caster_peer_id)
+	_sequence_id[caster_peer_id] = -1  # invalidates any in-flight _run_bite_sequence await
+	_hook_open[caster_peer_id] = false
+	_hook_set[caster_peer_id] = false
+	_pending.erase(caster_peer_id)
+	# Resets Rod's own per-owner _hook_window_open flag even if no window was
+	# actually open (harmless/idempotent either way) -- without this, a
+	# capsize or cancel interrupting an open window left that flag stuck
+	# true client-side, since only bite_started/bite_hook_window_missed ever
+	# clear it and neither fires on this path otherwise.
+	_notify_hook_missed.rpc(caster_peer_id)
+	var spawner: Node = get_tree().get_first_node_in_group("visual_fish_spawner")
+	if spawner:
+		spawner.despawn_shadow(caster_peer_id, false)
 
 
 ## Called by TangleManager (host-side) when a tangle-loser's line snaps --
-## cancels their pending bite timer and despawns any fish already on their
-## line. A tangle can currently only start while both rods are WAITING_BITE
-## (see Rod._on_line_area_entered), so an active fish shouldn't normally
-## coexist with one, but cheap to clean up either way rather than assume.
+## cancels their in-flight bite attempt and despawns any fish already on
+## their line. A tangle can currently only start while both rods are
+## WAITING_BITE (see Rod._on_line_area_entered), so an active fish
+## shouldn't normally coexist with a pending attempt, but cheap to clean up
+## either way rather than assume.
 func cancel_pending_bite(peer_id: int) -> void:
 	_cancel_pending(peer_id)
 	if _active_fish.has(peer_id):

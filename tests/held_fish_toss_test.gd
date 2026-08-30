@@ -13,6 +13,18 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
+	# GDD Bite Detection: bite_started now waits on a shadow strike + hook-set
+	# window -- auto-answer it immediately so this test's cast-and-wait-for-
+	# REELING still works the same as before (this test is about held-fish
+	# state, not bite timing).
+	EventBus.bite_hook_window_opened.connect(func(peer_id, _duration):
+		if peer_id != 1:
+			return
+		var bite_manager := get_tree().get_first_node_in_group("bite_event_manager")
+		if bite_manager:
+			bite_manager.request_hook_set()
+	)
+
 	NetworkManager.spawned_local_player.connect(_on_local_player_spawned)
 	NetworkManager.host_lobby()
 
@@ -40,7 +52,7 @@ func _on_local_player_spawned(player: Player) -> void:
 	original_rod.release_cast()
 
 	waited = 0.0
-	while original_rod.state != Rod.CastState.REELING and waited < 5.0:
+	while original_rod.state != Rod.CastState.REELING and waited < 8.0:
 		await get_tree().process_frame
 		waited += get_process_delta_time()
 	if original_rod.state != Rod.CastState.REELING:

@@ -13,6 +13,7 @@ extends Control
 var _bar_container: Control = null
 var _fill: ColorRect = null
 var _cancel_hint: Label = null
+var _hook_prompt: Label = null
 var _local_rod: Rod = null  ## cached once found -- same node survives stow/re-equip cycles
 
 
@@ -23,6 +24,9 @@ func _ready() -> void:
 	EventBus.cast_charge_updated.connect(_on_charge_updated)
 	EventBus.cast_landed.connect(_on_cast_ended_landed)
 	EventBus.cast_failed.connect(_on_cast_ended_failed)
+	EventBus.bite_hook_window_opened.connect(_on_hook_window_opened)
+	EventBus.bite_hook_window_missed.connect(_on_hook_window_closed)
+	EventBus.bite_started.connect(_on_bite_started)
 
 
 ## Right-click cancels a charging or waiting cast (Rod.request_cancel_cast)
@@ -97,6 +101,21 @@ func _build_ui() -> void:
 	_cancel_hint.hide()
 	add_child(_cancel_hint)
 
+	# GDD Bite Detection: "press to set the hook in a short window" -- big
+	# and centered since this is the one thing the player has to react to
+	# fast, unlike the passive charge bar/cancel hint.
+	_hook_prompt = Label.new()
+	_hook_prompt.text = "SET THE HOOK! (click)"
+	_hook_prompt.add_theme_font_size_override("font_size", 32)
+	_hook_prompt.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	_hook_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hook_prompt.set_anchors_preset(Control.PRESET_CENTER)
+	_hook_prompt.position = Vector2(-200.0, -60.0)
+	_hook_prompt.custom_minimum_size = Vector2(400.0, 50.0)
+	_hook_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hook_prompt.hide()
+	add_child(_hook_prompt)
+
 
 func _on_charge_started(caster_peer_id: int) -> void:
 	if caster_peer_id != multiplayer.get_unique_id():
@@ -121,6 +140,22 @@ func _on_cast_ended_failed(_reason: StringName, caster_peer_id: int) -> void:
 	if caster_peer_id != multiplayer.get_unique_id():
 		return
 	_bar_container.hide()
+
+
+func _on_hook_window_opened(caster_peer_id: int, _duration: float) -> void:
+	if caster_peer_id != multiplayer.get_unique_id():
+		return
+	_hook_prompt.show()
+
+
+func _on_hook_window_closed(caster_peer_id: int) -> void:
+	if caster_peer_id != multiplayer.get_unique_id():
+		return
+	_hook_prompt.hide()
+
+
+func _on_bite_started(_fish_data: FishData, caster_peer_id: int) -> void:
+	_on_hook_window_closed(caster_peer_id)
 
 
 func _set_fill(power: float) -> void:

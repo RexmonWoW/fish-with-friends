@@ -18,7 +18,18 @@ signal cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int
 ## Listeners: power meter UI reset (Minigame Logic / Art & Polish).
 signal cast_failed(reason: StringName, caster_peer_id: int)
 
-## Emitted on all peers when a fish bites a cast line.
+## Emitted on all peers when a shadow fish strikes the line and the
+## hook-set window opens (GDD Bite Detection). Listeners: CastMeter (hook
+## prompt), Rod (accepts the hook-set input while this is open).
+signal bite_hook_window_opened(caster_peer_id: int, duration: float)
+
+## Emitted on all peers when a hook-set window closes without a successful
+## hook-set -- the shadow spooked off. Listeners: same as above, to hide
+## the prompt/stop accepting input until the next shadow strikes.
+signal bite_hook_window_missed(caster_peer_id: int)
+
+## Emitted on all peers when a fish bites a cast line (hook successfully
+## set -- see bite_hook_window_opened above for what leads up to this).
 ## Listeners: reel minigame trigger (Minigame Logic).
 signal bite_started(fish_data: FishData, caster_peer_id: int)
 

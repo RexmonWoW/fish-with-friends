@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://systems/tangle_manager.gd" id="6_tanglemgr"]
 [ext_resource type="Script" path="res://systems/capsize_manager.gd" id="7_capsizemgr"]
 [ext_resource type="Script" path="res://systems/big_fish_event_manager.gd" id="8_bigfishmgr"]
+[ext_resource type="Script" path="res://systems/visual_fish_spawner.gd" id="9_visualfishspawner"]
 
 [sub_resource type="Environment" id="Environment_lake"]
 background_mode = 1
@@ -73,6 +74,9 @@ script = ExtResource("7_capsizemgr")
 
 [node name="BigFishEventManager" type="Node" parent="PlayableArea"]
 script = ExtResource("8_bigfishmgr")
+
+[node name="VisualFishSpawner" type="Node" parent="PlayableArea"]
+script = ExtResource("9_visualfishspawner")
 
 [node name="PlayerSpawnPoints" type="Node3D" parent="PlayableArea"]
 

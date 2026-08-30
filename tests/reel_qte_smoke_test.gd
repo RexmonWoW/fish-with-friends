@@ -12,6 +12,18 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
+	# GDD Bite Detection: a shadow now has to strike and the hook-set window
+	# has to be answered before bite_started fires -- auto-answer it
+	# immediately every time so this test can still cast-and-wait-for-REELING
+	# like it always did (this test is about the QTE layer, not bite timing).
+	EventBus.bite_hook_window_opened.connect(func(peer_id, _duration):
+		if peer_id != 1:
+			return
+		var bite_manager := get_tree().get_first_node_in_group("bite_event_manager")
+		if bite_manager:
+			bite_manager.request_hook_set()
+	)
+
 	NetworkManager.spawned_local_player.connect(_on_local_player_spawned)
 	NetworkManager.host_lobby()
 
@@ -110,7 +122,7 @@ func _cast_and_wait_for_reel(rod: Rod) -> void:
 	rod.release_cast()
 
 	var waited := 0.0
-	while rod.state != Rod.CastState.REELING and waited < 5.0:
+	while rod.state != Rod.CastState.REELING and waited < 8.0:
 		await get_tree().process_frame
 		waited += get_process_delta_time()
 
