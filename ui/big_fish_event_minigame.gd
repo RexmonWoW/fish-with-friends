@@ -109,11 +109,11 @@ func _get_manager() -> Node:
 
 # ── EventBus reactions ───────────────────────────────────────────────────────────
 
-func _on_ready_check_started(_target_spot: Vector3, _duration: float) -> void:
+func _on_ready_check_started(_target_spot: Vector3, duration: float) -> void:
 	_is_local_participant = false
 	_clear_bars()
 	show()
-	_show_banner("A BIG FISH IS OUT THERE! Cast at the disturbance to join in!", 999999.0)
+	_show_banner("A BIG FISH IS OUT THERE! Cast at the disturbance to join in!", duration)
 
 
 func _on_participant_joined(peer_id: int) -> void:
