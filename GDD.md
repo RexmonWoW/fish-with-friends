@@ -17,7 +17,8 @@ Chaotic co-op fishing game, 1–4 players, solo playable, Steam only.
 ---
 
 ## Art + Tone
-- 3D toon art style
+- Art direction goal: Sea of Thieves — warm, atmospheric, painterly.
+- **Nick is modeling, texturing, and painting everything himself — this is not a Code task.** Code's job stays code/systems: keep placeholder meshes/materials simple and easily swappable (standard import setup, one clear material slot per part) so real assets drop in cleanly later. Don't build stylized shaders, hand-tune lighting/atmosphere, or otherwise take a swing at the visuals unless explicitly asked.
 - FPS camera
 - Silly, cozy audio
 - Cozy music in lobby, chaotic music on boat
