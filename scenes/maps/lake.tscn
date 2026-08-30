@@ -25,6 +25,9 @@ albedo_color = Color(0.15, 0.45, 0.65, 0.85)
 [sub_resource type="BoxShape3D" id="Shape_water"]
 size = Vector3(100, 1.0, 100)
 
+[sub_resource type="PhysicsMaterial" id="PhysMat_water_lowfriction"]
+friction = 0.05
+
 [node name="Lake" type="Node3D" unique_id=327869229]
 script = ExtResource("1_lakescript")
 
@@ -35,6 +38,7 @@ environment = SubResource("Environment_lake")
 
 [node name="Water" type="StaticBody3D" parent="Environment" groups=["water_surface"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+physics_material_override = SubResource("PhysMat_water_lowfriction")
 
 [node name="WaterMesh" type="MeshInstance3D" parent="Environment/Water"]
 mesh = SubResource("PlaneMesh_water")

@@ -111,7 +111,15 @@ func _toss_into_water(player: Player) -> void:
 		var probe := center + direction * clearance
 		var water_point: Variant = WaterValidator.find_water_point(probe, map)
 		if water_point != null:
-			player.global_position = water_point
+			# find_water_point returns the exact collision surface height --
+			# placing the player's ORIGIN there embeds half their capsule
+			# (radius 0.4) inside the solid water collision box underneath,
+			# which the physics solver then has to spend time resolving
+			# every step. Clear the surface by a real margin instead (the
+			# actual "capsize -- can't move" bug turned out to be
+			# elsewhere, in Player._physics_process's swim branch -- this
+			# is a separate, worthwhile defensive fix on its own).
+			player.global_position = (water_point as Vector3) + Vector3(0.0, 0.6, 0.0)
 			return
 	# All 8 directions failed (very unlikely) -- leave the player where
 	# they already are rather than teleporting them somewhere unvalidated.

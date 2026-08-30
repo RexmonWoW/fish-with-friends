@@ -98,12 +98,7 @@ func _on_local_player_spawned(player1: Player) -> void:
 		print("FAIL: rod isn't stowed on the back (stowed_item=%s)" % player1.equipment_slot.stowed_item)
 		get_tree().quit(1)
 		return
-	var model := player1.body_pivot.get_node("PlayerModel") as Node3D
-	if is_equal_approx(model.rotation.x, 0.0):
-		print("FAIL: player model didn't tilt into a swim pose")
-		get_tree().quit(1)
-		return
-	print("Rod stowed to the back, model tilted into a swim pose.")
+	print("Rod stowed to the back.")
 
 	# Casting should be blocked entirely while swimming.
 	rod1.start_charge()
@@ -178,11 +173,7 @@ func _on_local_player_spawned(player1: Player) -> void:
 		print("FAIL: rod not back in hand after capsize resolved (equipped_item=%s)" % player1.equipment_slot.equipped_item)
 		get_tree().quit(1)
 		return
-	if not is_equal_approx(model.rotation.x, 0.0):
-		print("FAIL: player model didn't return to its normal pose")
-		get_tree().quit(1)
-		return
-	print("Rod back in hand, model pose restored.")
+	print("Rod back in hand.")
 
 	rod1.start_charge()
 	if rod1.state != Rod.CastState.CHARGING:
