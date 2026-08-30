@@ -101,8 +101,8 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 ---
 
 ## Big Fish Event
-*(Lake map only)*
-- Random chance to trigger during a round on the Lake map. Boat shakes to signal it.
+*(Lake map only — Lake's signature hazard, its counterpart to Ocean's pelican, Ice Lake's cold, Swamp's mosquito, and Storm's lightning)*
+- Triggers once per day, in the final stretch of the day's second (last) round — a climactic capstone to the day rather than a random mid-round surprise. Boat shakes to signal it.
 - **Ready check:** players cast at the shaking spot to join in. This window has its own short time limit (placeholder ~15-20s, tune by feel). Whoever's cast in when it closes participates — doesn't require the whole lobby, so solo play is just a ready check of one. Nobody casts in = event fizzles.
 - Once the ready check closes, every participating player gets an on-screen bar with their name underneath, visible to everyone (including anyone who didn't join in) — everyone starts together.
 - Same feel as the Reel Mechanic: hold to rise, periodic QTE prompts.
@@ -205,7 +205,7 @@ Fish are data resources with the following fields:
 All maps are modular — fixed core, procedural surroundings.
 
 ### Lake *(Tutorial)*
-- Big fish event active
+- Hazard: Big Fish Event (see its own section) — once per day, end of the day's last round
 - Bird: heron or duck
 
 ### Ocean
@@ -290,6 +290,7 @@ Live status for this list lives in PROGRESS.md, not here — this list is the pl
 - Hazards
 - Steam leaderboard
 - Microtransactions
+- Fun idea, not scoped: a challenge mode combining every map's hazard at once, once all maps/hazards exist
 
 ---
 
