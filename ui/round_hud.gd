@@ -23,6 +23,7 @@ func _ready() -> void:
 
 	RunState.round_started.connect(_on_round_started)
 	RunState.round_ended.connect(_on_round_ended)
+	RunState.round_time_synced.connect(_on_round_time_synced)
 	RunState.round_sold.connect(_on_round_sold)
 	RunState.day_summary.connect(_on_day_summary)
 	# Livewell contents count toward quota progress before they're actually
@@ -61,13 +62,25 @@ func _build_ui() -> void:
 
 func _process(delta: float) -> void:
 	if _counting_down:
-		_time_remaining = maxf(_time_remaining - delta, 0.0)
-		_update_timer_label()
+		# Defensive: hide instead of ticking if we're somehow not actually
+		# on a real round map any more (e.g. a dropped round_ended RPC) --
+		# the timer should only ever be visible during an active round.
+		if NetworkManager.get_current_map() == null:
+			_counting_down = false
+			_timer_label.hide()
+		else:
+			_time_remaining = maxf(_time_remaining - delta, 0.0)
+			_update_timer_label()
 
 	if _summary_timer > 0.0:
 		_summary_timer -= delta
 		if _summary_timer <= 0.0:
 			_summary_label.hide()
+
+
+func _on_round_time_synced(seconds_remaining: float) -> void:
+	_time_remaining = seconds_remaining
+	_update_timer_label()
 
 
 func _on_round_started(_round_number: int, _day_number: int, duration_seconds: float) -> void:

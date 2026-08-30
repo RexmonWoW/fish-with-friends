@@ -4,7 +4,8 @@ extends Node
 ## set_time, skip_day) -- added so playtesting the Big Fish Event (only
 ## triggers in the last ~90s of the day's second round) and other
 ## day-boundary logic doesn't mean sitting through most of two 5-min
-## rounds per attempt.
+## rounds per attempt. Also covers set_time actually syncing RoundHud's
+## displayed countdown, not just RunState's internal timer.
 ##
 ## Quota is forced to 0 before each skip_day so day-pass/fail (irrelevant
 ## to what's being tested here) doesn't gate whether the day actually
@@ -40,13 +41,25 @@ func _on_local_player_spawned(_player: Player) -> void:
 		return
 	await get_tree().process_frame
 
-	# set_time: jumps the clock without ending the round.
+	# set_time: jumps the clock without ending the round, AND the displayed
+	# countdown (RoundHud keeps its own locally-ticking copy, not a live
+	# read of RunState._time_remaining) needs to actually reflect the jump.
+	var round_hud := get_tree().root.get_node("GameRoot/UILayer/RoundHud")
 	RunState.debug_set_time_remaining(42.0)
-	if not is_equal_approx(RunState._time_remaining, 42.0):
+	await get_tree().process_frame
+	# Both timers keep actively ticking down (real gameplay, not paused), so
+	# allow a bit of drift from the extra frame(s) waited above -- the point
+	# is confirming they're near 42s, not that they're frozen there.
+	if absf(RunState._time_remaining - 42.0) > 0.5:
 		print("FAIL: set_time didn't set _time_remaining (got %.2f)" % RunState._time_remaining)
 		get_tree().quit(1)
 		return
-	print("set_time jumped the clock to 42s.")
+	var hud_time: float = round_hud.get("_time_remaining")
+	if absf(hud_time - 42.0) > 0.5:
+		print("FAIL: set_time didn't sync RoundHud's displayed countdown (got %.2f)" % hud_time)
+		get_tree().quit(1)
+		return
+	print("set_time jumped the clock to 42s, and the HUD countdown reflects it.")
 
 	# skip_round: ends round 1 immediately, same transition a real timeout
 	# would trigger (round 1 -> round 2, same day).

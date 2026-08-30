@@ -21,6 +21,7 @@ extends Node
 
 signal round_started(round_number: int, day_number: int, duration_seconds: float)
 signal round_ended(round_number: int, day_number: int)
+signal round_time_synced(seconds_remaining: float)
 signal round_sold(round_number: int, day_number: int, earned: int, total_money: int)
 signal day_summary(day_number: int, earned: int, total_money: int, quota: int, passed: bool)
 signal run_over(final_day: int, final_money: int)
@@ -188,10 +189,20 @@ func debug_skip_round() -> void:
 	_time_remaining = 0.01
 
 
+## Also broadcasts the new time so every peer's HUD countdown -- which
+## normally just ticks down locally from the duration given at round start,
+## rather than re-syncing every frame -- actually reflects the jump instead
+## of silently drifting from the real (server-authoritative) clock.
 func debug_set_time_remaining(seconds: float) -> void:
 	if not multiplayer.is_server() or not _round_active:
 		return
 	_time_remaining = maxf(seconds, 0.01)
+	_notify_time_synced.rpc(_time_remaining)
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_time_synced(seconds: float) -> void:
+	round_time_synced.emit(seconds)
 
 
 ## Ends the current round; if that was round 1, walks through the same
