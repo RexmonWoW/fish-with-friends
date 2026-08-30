@@ -62,6 +62,15 @@ func _on_local_player_spawned(player: Player) -> void:
 		return
 	print("Ready check started, target spot: ", mgr._target_spot)
 
+	# Playtest report: the disturbance could land under the boat.
+	var dist_from_boat: float = mgr._target_spot.distance_to(mgr._center)
+	if dist_from_boat < mgr._boat_clearance:
+		print("FAIL: target spot is only %.1f from center, inside the boat's %.1f clearance" %
+			[dist_from_boat, mgr._boat_clearance])
+		get_tree().quit(1)
+		return
+	print("Target spot is %.1f from center, clear of the boat (clearance=%.1f)." % [dist_from_boat, mgr._boat_clearance])
+
 	await get_tree().process_frame
 	var markers := get_tree().get_nodes_in_group("big_fish_disturbance_marker")
 	if markers.is_empty():

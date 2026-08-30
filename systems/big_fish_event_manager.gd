@@ -65,6 +65,7 @@ var _phase_timer: float = 0.0
 var _already_triggered: bool = false
 var _participants: Dictionary = {}  ## peer_id (int) -> Dictionary of bar/QTE state
 var _center: Vector3 = Vector3.ZERO  ## where ready-check spots roll around -- set via setup()
+var _boat_clearance: float = 8.0  ## min distance from _center a spot must be -- set via setup()
 
 
 func _ready() -> void:
@@ -76,9 +77,17 @@ func _ready() -> void:
 ## Called by the map (Lake -- extends Node, no transform of its own, so the
 ## center to roll ready-check spots around is handed in rather than read
 ## from a global_position that doesn't exist here). Same wiring shape as
-## CapsizeManager.setup(corner_markers).
-func setup(center: Vector3) -> void:
+## CapsizeManager.setup(corner_markers). corner_markers (the boat's
+## CapsizeCorners, same array CapsizeManager.setup() gets) sizes the
+## exclusion zone around the boat explicitly -- playtest report: the
+## disturbance could land under the boat.
+func setup(center: Vector3, corner_markers: Array = []) -> void:
 	_center = center
+	if not corner_markers.is_empty():
+		var max_dist := 0.0
+		for marker in corner_markers:
+			max_dist = maxf(max_dist, center.distance_to((marker as Marker3D).global_position))
+		_boat_clearance = max_dist + 5.0  ## boat radius + a real margin
 
 
 func _process(delta: float) -> void:
@@ -132,13 +141,18 @@ func _start_ready_check() -> bool:
 	var map := NetworkManager.get_current_map()
 	if map == null:
 		return false
-	# Somewhere in open water, well past the boat's own footprint.
+	# Somewhere in open water, well past the boat's own footprint --
+	# _boat_clearance (boat radius + margin, from setup()) is the actual
+	# floor here, not just a hardcoded guess, so this stays correct however
+	# big the real boat art ends up being.
 	var angle := randf() * TAU
-	var radius := randf_range(8.0, 15.0)
+	var radius := randf_range(_boat_clearance, _boat_clearance + 7.0)
 	var probe := _center + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
 	var water_point: Variant = WaterValidator.find_water_point(probe, map)
 	if water_point == null:
 		return false  # bad luck this probe, retried next frame
+	if (water_point as Vector3).distance_to(_center) < _boat_clearance:
+		return false  # water_point can differ in XZ from the probe if the raycast drifted -- double-check
 
 	_target_spot = water_point
 	_participants.clear()
