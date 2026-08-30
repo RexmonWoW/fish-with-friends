@@ -147,7 +147,15 @@ func _receive_caught_fish(fish: CaughtFish) -> void:
 
 
 func equip_fish(fish: CaughtFish) -> void:
-	unequip_rod()  # stow it, keep it alive for later
+	if equipped_item is Rod:
+		unequip_rod()  # stow it, keep it alive for later
+	elif equipped_item != null:
+		# Already holding a DIFFERENT fish -- the swap-into-livewell path
+		# (request_swap_into_livewell) hands back the slot's old fish while
+		# the player's still holding the one they just placed. The rod's
+		# already stowed from the first equip_fish() call; just drop the
+		# stale visual, don't try to unequip_rod() again.
+		equipped_item.queue_free()
 	_held_fish = fish
 
 	var visual := _build_held_fish_visual(fish)
@@ -260,10 +268,49 @@ func _request_grab_from_livewell(index: int) -> void:
 	_receive_caught_fish.rpc(fish)
 
 
+## Called by LivewellDisplay's "1-5" handler when the local player IS
+## holding a fish and that slot is occupied -- one-step replace instead of
+## the two-step grab-then-store, by request. The slot's old fish comes back
+## into the player's hand (same as a grab), not discarded.
+func request_swap_into_livewell(index: int) -> void:
+	_request_swap_into_livewell.rpc(index)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_swap_into_livewell(index: int) -> void:
+	if not multiplayer.is_server():
+		return
+	if not _valid_sender():
+		return
+	if _held_fish == null:
+		return
+
+	var livewell: Livewell = get_tree().get_first_node_in_group("livewell") as Livewell
+	if livewell == null:
+		return
+	var new_fish := _held_fish
+	var old_fish := livewell.swap_fish(index, new_fish)
+	if old_fish == null:
+		return  # slot was empty -- caller should use store instead
+	_receive_caught_fish.rpc(old_fish)
+
+
 @rpc("authority", "call_local", "reliable")
 func _broadcast_fish_resolved() -> void:
 	unequip_fish()
 	re_equip_rod()
+
+
+## Host-only, called by RunState at round end -- a fish still held (never
+## stored with E) previously just carried forward into the next round
+## unsold. Returns its value (0 if nothing's held) and broadcasts the same
+## resolution toss/store already use so it visually clears for everyone.
+func sell_held_fish_for_round_end() -> int:
+	if _held_fish == null:
+		return 0
+	var value := _held_fish.final_value
+	_broadcast_fish_resolved.rpc()
+	return value
 
 
 func _valid_sender() -> bool:

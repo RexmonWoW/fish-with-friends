@@ -79,6 +79,28 @@ func _apply_add(index: int, fish: CaughtFish) -> void:
 	EventBus.livewell_updated.emit(self)
 
 
+## Host-authoritative. Atomically replaces an OCCUPIED slot's fish with the
+## one passed in, returning the fish that was there (for the caller to hand
+## to whoever's making the swap) -- null if the slot was empty or out of
+## range, same as remove_fish(). A direct "press the number while holding a
+## fish" swap, one step instead of the existing grab-then-store two-step.
+func swap_fish(index: int, new_fish: CaughtFish) -> CaughtFish:
+	if index < 0 or index >= MAX_SLOTS:
+		return null
+	var old_fish: CaughtFish = slots[index]
+	if old_fish == null:
+		return null
+	_apply_swap.rpc(index, new_fish)
+	return old_fish
+
+
+@rpc("authority", "call_local", "reliable")
+func _apply_swap(index: int, new_fish: CaughtFish) -> void:
+	slots[index] = new_fish
+	_spawn_visual(index, new_fish)
+	EventBus.livewell_updated.emit(self)
+
+
 ## Host-authoritative. Removes and returns the fish at index (throw overboard
 ## or sell-at-end-of-day both go through this). Null if the slot was empty
 ## or out of range.
@@ -140,6 +162,27 @@ func add_big_fish(fish: CaughtFish) -> void:
 func _apply_add_big_fish(fish: CaughtFish) -> void:
 	big_fish_slot = fish
 	_spawn_big_fish_visual(fish)
+	EventBus.livewell_updated.emit(self)
+
+
+## Host-authoritative, same shape as remove_fish() -- was missing entirely,
+## so a caught big fish just sat in its reserved slot forever, never sold
+## even at day's end (playtest report: "some of the ones in the livewell
+## didn't sell").
+func remove_big_fish() -> CaughtFish:
+	if big_fish_slot == null:
+		return null
+	var fish := big_fish_slot
+	_apply_remove_big_fish.rpc()
+	return fish
+
+
+@rpc("authority", "call_local", "reliable")
+func _apply_remove_big_fish() -> void:
+	big_fish_slot = null
+	if _big_fish_visual != null and is_instance_valid(_big_fish_visual):
+		_big_fish_visual.queue_free()
+	_big_fish_visual = null
 	EventBus.livewell_updated.emit(self)
 
 

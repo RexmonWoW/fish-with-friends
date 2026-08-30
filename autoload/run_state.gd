@@ -88,8 +88,10 @@ func _end_round() -> void:
 
 	# Sell whatever's in the livewell every round -- heading back to shore --
 	# and bank it immediately. The quota pass/fail check still only happens
-	# once both rounds of a day are in, below.
-	var earned := _sell_all_livewells()
+	# once both rounds of a day are in, below. Also sells any fish still
+	# HELD (caught but never stored with E) -- otherwise it just silently
+	# carried forward into the next round instead of being part of the sale.
+	var earned := _sell_all_livewells() + _sell_held_fish()
 	total_money_earned += earned
 	_day_earned_so_far += earned
 
@@ -174,6 +176,19 @@ func _sell_all_livewells() -> int:
 			var fish := livewell.remove_fish(i)
 			if fish != null:
 				earned += fish.final_value
+		# The reserved Big Fish Event slot is separate from the 5 normal
+		# slots and was never included here -- it just sat there forever,
+		# never sold ("some of the ones in the livewell didn't sell").
+		var big_fish := livewell.remove_big_fish()
+		if big_fish != null:
+			earned += big_fish.final_value
+	return earned
+
+
+func _sell_held_fish() -> int:
+	var earned := 0
+	for player in NetworkManager.spawned_players.values():
+		earned += (player as Player).equipment_slot.sell_held_fish_for_round_end()
 	return earned
 
 

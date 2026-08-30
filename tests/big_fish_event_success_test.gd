@@ -123,6 +123,8 @@ func _on_local_player_spawned(player: Player) -> void:
 
 	# Simulate holding + correctly answering every QTE for up to ~30s of
 	# simulated time -- should be plenty to reach and hold the soft-max band.
+	var minigame_ui := get_tree().root.get_node("GameRoot/UILayer/BigFishEventMinigame")
+	var checked_qte_label := false
 	mgr._request_report_holding(true)
 	var simulated := 0.0
 	while mgr._phase == mgr.Phase.ACTIVE and simulated < 30.0:
@@ -130,6 +132,19 @@ func _on_local_player_spawned(player: Player) -> void:
 		simulated += 0.1
 		var p: Dictionary = mgr._participants.get(1, {})
 		if p.get("qte_active", false):
+			# Was hardcoded to always show "!" -- players had no way to know
+			# which key to press. Confirm it shows the actual required key.
+			if not checked_qte_label:
+				checked_qte_label = true
+				var nodes: Dictionary = minigame_ui._bar_nodes.get(1, {})
+				var qte_label: Label = nodes.get("qte_label")
+				var expected: String = minigame_ui.QTE_PROMPTS[p["qte_prompt"]]["label"]
+				if qte_label == null or qte_label.text != expected:
+					print("FAIL: QTE label shows '%s', expected the actual required key '%s'" %
+						[qte_label.text if qte_label else "<null>", expected])
+					get_tree().quit(1)
+					return
+				print("QTE label correctly shows the required key: '%s'" % expected)
 			mgr._request_report_qte_hit()
 
 	if _resolved_success != true:

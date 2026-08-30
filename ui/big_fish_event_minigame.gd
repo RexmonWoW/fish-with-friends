@@ -256,6 +256,11 @@ func _update_bar(peer_id: int, p: Dictionary) -> void:
 
 	var qte_label: Label = nodes["qte_label"]
 	if p["qte_active"] and not p["locked_in"]:
+		# Was hardcoded to "!" -- players had no way to know which key to
+		# press and could only guess/mash, which also quietly undercut the
+		# difficulty retune (playtest: "i just see an exclamation point").
+		var prompt_index: int = p["qte_prompt"]
+		qte_label.text = QTE_PROMPTS[prompt_index]["label"] if prompt_index >= 0 and prompt_index < QTE_PROMPTS.size() else "!"
 		qte_label.show()
 	else:
 		qte_label.hide()

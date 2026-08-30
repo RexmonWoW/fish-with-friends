@@ -150,7 +150,7 @@ func _refresh_info() -> void:
 func _update_hint() -> void:
 	var slot := _local_equipment_slot()
 	if slot != null and slot.has_fish_held():
-		_hint_label.text = "Holding a fish — press E to store it"
+		_hint_label.text = "Holding a fish — press E to store it, or 1-5 to swap it into a full slot"
 	else:
 		_hint_label.text = "Press 1-5 to grab a fish (Q to toss, E to put back)"
 
@@ -171,7 +171,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	var index := (event as InputEventKey).keycode - KEY_1
 	if index < 0 or index >= Livewell.MAX_SLOTS:
 		return
-	if slot != null and not slot.has_fish_held() and _current_livewell.slots[index] != null:
+
+	if slot != null and slot.has_fish_held():
+		# Holding a fish over an occupied slot -- one-step replace instead
+		# of the grab-then-store two-step, by request. An empty slot still
+		# needs E (store), not a number -- nothing to swap OUT of an empty
+		# slot.
+		if _current_livewell.slots[index] != null:
+			slot.request_swap_into_livewell(index)
+		return
+
+	if slot != null and _current_livewell.slots[index] != null:
 		slot.request_grab_from_livewell(index)
 
 
