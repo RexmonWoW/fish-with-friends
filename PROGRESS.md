@@ -39,6 +39,11 @@ _Standing decisions worth remembering, not a changelog — see Session Log for w
 - Not built yet: real lobby content, rejected-cast feedback message, real multi-player livewell "negotiate when full" UX, real fish species/art content, rarity-tiered spawn weighting.
 - Future want, not scheduled: a bobber upgrade that reveals species before reeling (Per-Run Shop item).
 
+## Pre-Release Checklist
+_(things that must be removed/checked before shipping — not now, but never forget them)_
+- **Remove the debug console** (`skip_round`/`skip_day`/`set_time`, added pass 29) and any other dev cheats before release.
+- (Add to this list any time a cheat, debug shortcut, or test-only backdoor gets added — see CLAUDE.md convention.)
+
 ## Open Questions
 _(needs a call from the planning chat)_
 - **Economy model**: GDD wants personal wallets + a shared fund; implementation has one shared pot. Needs a decision before the Per-Run Shop is built.
