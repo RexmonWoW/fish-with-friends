@@ -27,6 +27,14 @@ var _banner_label: Label = null
 var _bars_root: Control = null
 var _bar_nodes: Dictionary = {}  ## peer_id -> {bg, fill, name_label, qte_label}
 
+## Team-wide summary at the top -- how close the CREW is overall, and how
+## long the event itself has left, separate from any one participant's own
+## bar. By request: "a collective progress bar... and how long u have
+## until it leaves."
+var _collective_fill: ColorRect = null
+var _collective_timer_label: Label = null
+var _collective_root: Control = null
+
 var _is_local_participant: bool = false
 var _local_qte_prompt: int = -1
 var _banner_timer: float = 0.0
@@ -62,6 +70,7 @@ func _on_round_boundary(_round_number: int, _day_number: int) -> void:
 	_local_qte_prompt = -1
 	_clear_bars()
 	_clear_marker()
+	_collective_root.hide()
 	hide()
 
 
@@ -94,6 +103,40 @@ func _build_ui() -> void:
 	_bars_root.custom_minimum_size = Vector2(600.0, BAR_HEIGHT + 40.0)
 	_bars_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_bars_root)
+
+	_build_collective_ui()
+
+
+func _build_collective_ui() -> void:
+	const WIDTH: float = 420.0
+
+	_collective_root = Control.new()
+	_collective_root.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_collective_root.position = Vector2(-WIDTH / 2.0, 60.0)
+	_collective_root.custom_minimum_size = Vector2(WIDTH, 46.0)
+	_collective_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_collective_root.hide()
+	add_child(_collective_root)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.1, 0.1, 0.1, 0.7)
+	bg.size = Vector2(WIDTH, 20.0)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_collective_root.add_child(bg)
+
+	_collective_fill = ColorRect.new()
+	_collective_fill.color = Color(0.3, 0.75, 1.0, 0.9)
+	_collective_fill.size = Vector2(0.0, 20.0)
+	_collective_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.add_child(_collective_fill)
+
+	_collective_timer_label = Label.new()
+	_collective_timer_label.add_theme_font_size_override("font_size", 18)
+	_collective_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_collective_timer_label.position = Vector2(0.0, 22.0)
+	_collective_timer_label.custom_minimum_size = Vector2(WIDTH, 24.0)
+	_collective_timer_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_collective_root.add_child(_collective_timer_label)
 
 
 func _process(delta: float) -> void:
@@ -173,21 +216,28 @@ func _on_event_active(participant_ids: Array, _duration: float) -> void:
 	_clear_marker()
 	for peer_id in participant_ids:
 		_add_bar(peer_id)
+	_collective_root.show()
 
 
-func _on_state_updated(participants: Dictionary) -> void:
+func _on_state_updated(participants: Dictionary, time_remaining: float) -> void:
 	var my_id := multiplayer.get_unique_id()
+	var total_progress := 0.0
+	var count := 0
 	for peer_id in participants.keys():
 		var p: Dictionary = participants[peer_id]
 		_update_bar(peer_id, p)
+		total_progress += 1.0 if p["locked_in"] else p["pos"]
+		count += 1
 		if peer_id == my_id:
 			_local_qte_prompt = p["qte_prompt"] if not p["locked_in"] else -1
+	_update_collective(total_progress / count if count > 0 else 0.0, time_remaining)
 
 
 func _on_event_resolved(success: bool) -> void:
 	_is_local_participant = false
 	_local_qte_prompt = -1
 	_clear_marker()  # safety net -- should already be cleared once active started
+	_collective_root.hide()
 	if success:
 		_show_banner("CAUGHT IT! Big fish is in the livewell.", 5.0)
 	else:
@@ -197,6 +247,16 @@ func _on_event_resolved(success: bool) -> void:
 		return
 	hide()
 	_clear_bars()
+
+
+## Crew-wide average of every participant's own progress (locked-in counts
+## as fully done) plus the event's own overall time limit -- separate from
+## any one participant's individual bar, which only shows their own effort.
+func _update_collective(avg_progress: float, time_remaining: float) -> void:
+	var bar_width: float = (_collective_fill.get_parent() as ColorRect).size.x
+	_collective_fill.size = Vector2(bar_width * clampf(avg_progress, 0.0, 1.0), _collective_fill.size.y)
+	var seconds := int(ceil(time_remaining))
+	_collective_timer_label.text = "Crew progress -- %ds left before it gets away" % seconds
 
 
 # ── Bars ─────────────────────────────────────────────────────────────────────────

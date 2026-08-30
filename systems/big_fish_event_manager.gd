@@ -269,7 +269,7 @@ func _all_locked_in() -> bool:
 
 
 func _broadcast_state() -> void:
-	_notify_state_update.rpc(_participants)
+	_notify_state_update.rpc(_participants, maxf(_phase_timer, 0.0))
 
 
 func _finish_event(success: bool) -> void:
@@ -372,8 +372,8 @@ func _notify_event_active(participant_ids: Array, duration: float) -> void:
 ## would just add latency for no benefit, unlike the discrete one-shot
 ## events above).
 @rpc("authority", "call_local", "unreliable")
-func _notify_state_update(participants: Dictionary) -> void:
-	EventBus.big_fish_state_updated.emit(participants)
+func _notify_state_update(participants: Dictionary, time_remaining: float) -> void:
+	EventBus.big_fish_state_updated.emit(participants, time_remaining)
 
 
 @rpc("authority", "call_local", "reliable")

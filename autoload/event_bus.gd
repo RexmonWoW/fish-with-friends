@@ -81,7 +81,9 @@ signal big_fish_event_active(participant_ids: Array, duration: float)
 ## Continuous bar/QTE state for every participant while active. Dictionary
 ## keyed by peer_id -> {pos, holding, qte_active, qte_prompt, locked_in, ...}
 ## -- see BigFishEventManager._participants for the exact shape.
-signal big_fish_state_updated(participants: Dictionary)
+## time_remaining is the event's own overall countdown (EVENT_TIME_LIMIT),
+## not any one participant's -- drives the collective progress/time UI.
+signal big_fish_state_updated(participants: Dictionary, time_remaining: float)
 
 ## One participant missed their QTE -- bigger hit to them, smaller shared
 ## hit to every other still-active participant (BigFishEventManager already

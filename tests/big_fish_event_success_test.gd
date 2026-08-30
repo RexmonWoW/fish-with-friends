@@ -124,13 +124,40 @@ func _on_local_player_spawned(player: Player) -> void:
 	# Simulate holding + correctly answering every QTE for up to ~30s of
 	# simulated time -- should be plenty to reach and hold the soft-max band.
 	var minigame_ui := get_tree().root.get_node("GameRoot/UILayer/BigFishEventMinigame")
+
+	# Collective progress bar/timer -- team-wide summary, separate from any
+	# one participant's own bar.
+	if not (minigame_ui.get("_collective_root") as Control).visible:
+		print("FAIL: collective progress bar should be visible once the event goes active")
+		get_tree().quit(1)
+		return
+	var collective_fill_start: float = (minigame_ui.get("_collective_fill") as ColorRect).size.x
+	print("Collective progress bar visible, starting width=%.1f" % collective_fill_start)
+
 	var checked_qte_label := false
+	var checked_collective_progress := false
 	mgr._request_report_holding(true)
 	var simulated := 0.0
 	while mgr._phase == mgr.Phase.ACTIVE and simulated < 30.0:
 		mgr._update_active(0.1)
 		simulated += 0.1
 		var p: Dictionary = mgr._participants.get(1, {})
+
+		if not checked_collective_progress and p.get("pos", 0.0) > 0.1:
+			checked_collective_progress = true
+			var fill_now: float = (minigame_ui.get("_collective_fill") as ColorRect).size.x
+			if fill_now <= collective_fill_start:
+				print("FAIL: collective progress bar never grew as the crew's average progress rose")
+				get_tree().quit(1)
+				return
+			var timer_text: String = (minigame_ui.get("_collective_timer_label") as Label).text
+			if not ("s left" in timer_text):
+				print("FAIL: collective timer label doesn't show a countdown: '%s'" % timer_text)
+				get_tree().quit(1)
+				return
+			print("Collective progress bar grew (%.1f -> %.1f), timer shows: '%s'" %
+				[collective_fill_start, fill_now, timer_text])
+
 		if p.get("qte_active", false):
 			# Was hardcoded to always show "!" -- players had no way to know
 			# which key to press. Confirm it shows the actual required key.
