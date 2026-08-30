@@ -27,12 +27,19 @@ const READY_CHECK_DURATION: float = 18.0  ## GDD: placeholder ~15-20s
 const JOIN_RADIUS: float = 4.0         ## how close a cast must land to the spot
 const EVENT_TIME_LIMIT: float = 45.0   ## overall time limit once active
 
-const RISE_ACCEL: float = 2.0
-const FALL_ACCEL: float = 1.4
-const MAX_SPEED: float = 1.4
+## Retuned 2026-08-30 (playtest: "impossibly easy... just press and hold").
+## The old numbers let a solo player climb to the lock-in band and finish
+## the whole 2s hold before the first QTE had even rolled (QTE_MIN_INTERVAL
+## alone was as long as the entire old climb-and-lock-in took) -- pure hold,
+## no real engagement. Slower climb + faster QTE cadence means at least one
+## QTE is now very likely to land mid-climb, with a real chance of missing
+## it. Still placeholder, still needs real playtesting to dial in further.
+const RISE_ACCEL: float = 0.6
+const FALL_ACCEL: float = 0.5
+const MAX_SPEED: float = 0.35
 
-const QTE_MIN_INTERVAL: float = 3.0
-const QTE_MAX_INTERVAL: float = 6.0
+const QTE_MIN_INTERVAL: float = 1.5
+const QTE_MAX_INTERVAL: float = 3.5
 const QTE_WINDOW: float = 1.1
 
 const MISS_PENALTY_SELF: float = 0.22   ## bigger hit to whoever missed
@@ -100,8 +107,18 @@ func _is_round_active() -> bool:
 ## the day's second (last) round. Doesn't mark itself triggered until
 ## _start_ready_check() actually succeeds, so a bad-luck water probe just
 ## gets retried next frame instead of losing the day's event entirely.
+##
+## _round_active is checked explicitly, not just round_number/time_remaining:
+## RunState._end_round() sets _round_active = false and bumps round_number
+## to 2 (and lets _time_remaining sit at ~0) BEFORE the scene actually
+## clears to the lobby (that transition is deferred a frame) -- without this
+## guard, round 1 ending could itself satisfy "round 2, time nearly out" for
+## the one frame before the world reloads, firing the event right at the
+## tail end of round 1 instead of near the end of round 2.
 func _maybe_trigger() -> void:
 	if _already_triggered:
+		return
+	if not RunState._round_active:
 		return
 	if RunState.round_number != RunState.ROUNDS_PER_DAY:
 		return

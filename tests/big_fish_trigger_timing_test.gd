@@ -43,6 +43,26 @@ func _on_local_player_spawned(_player: Player) -> void:
 		return
 	print("Stayed quiet on round 1 with 5s left.")
 
+	# Simulate the exact transitional race that let the event fire in the
+	# lobby: RunState._end_round() sets _round_active = false and bumps
+	# round_number to 2 (and leaves _time_remaining near 0) BEFORE the scene
+	# actually clears to the lobby -- if this manager's own _process() runs
+	# again before that reload finishes, round_number/_time_remaining alone
+	# would satisfy "final stretch of round 2." Must still stay quiet.
+	RunState.round_number = RunState.ROUNDS_PER_DAY
+	RunState._round_active = false
+	RunState._time_remaining = 0.01
+	mgr._process(0.1)
+	if mgr._phase != mgr.Phase.INACTIVE:
+		print("FAIL: event triggered during the round-1-ending transitional window (the 'triggers in the lobby' bug)")
+		get_tree().quit(1)
+		return
+	print("Stayed quiet during the round-1-ending transitional window.")
+	# Restore -- the real _end_round() hasn't actually run yet in this test,
+	# and round 1 still needs to end for real via the timer below.
+	RunState.round_number = 1
+	RunState._round_active = true
+
 	# Advance to round 2 (a fresh Lake, fresh manager instance).
 	RunState._time_remaining = 0.01
 	await _wait_frames(5)
