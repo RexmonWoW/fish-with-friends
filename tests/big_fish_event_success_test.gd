@@ -62,6 +62,21 @@ func _on_local_player_spawned(player: Player) -> void:
 		return
 	print("Ready check started, target spot: ", mgr._target_spot)
 
+	await get_tree().process_frame
+	var markers := get_tree().get_nodes_in_group("big_fish_disturbance_marker")
+	if markers.is_empty():
+		print("FAIL: no world marker spawned at the ready-check spot -- players have nothing to actually see")
+		get_tree().quit(1)
+		return
+	# Loose tolerance, not is_equal_approx's tight default -- _target_spot
+	# travels through an actual RPC (even for this call_local host case),
+	# which round-trips Vector3s through float32 network encoding.
+	if (markers[0] as Node3D).global_position.distance_to(mgr._target_spot) > 0.01:
+		print("FAIL: marker isn't positioned at the actual target spot")
+		get_tree().quit(1)
+		return
+	print("World marker spawned at the target spot.")
+
 	# A cast landing right on the spot should join instead of scheduling a
 	# normal bite.
 	rod._cast_landed(mgr._target_spot, 0.5)
@@ -89,6 +104,13 @@ func _on_local_player_spawned(player: Player) -> void:
 		get_tree().quit(1)
 		return
 	print("Event active with 1 participant.")
+
+	await get_tree().process_frame  # queue_free() is deferred, not immediate
+	if not get_tree().get_nodes_in_group("big_fish_disturbance_marker").is_empty():
+		print("FAIL: world marker should be cleared once the event goes active")
+		get_tree().quit(1)
+		return
+	print("World marker cleared once active.")
 
 	# Simulate holding + correctly answering every QTE for up to ~30s of
 	# simulated time -- should be plenty to reach and hold the soft-max band.
