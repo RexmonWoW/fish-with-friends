@@ -15,6 +15,19 @@ var _active_tween: Tween = null
 var _is_out: bool = false  ## true from cast_landed until Rod.state returns to IDLE
 var _anchor_position: Vector3 = Vector3.ZERO  ## world-space landing spot, once landed
 
+## GDD Line Tangling: "Landed bobbers drift slowly in a random direction
+## while waiting for a bite (small radius) -- makes lines crossing more
+## common." Deterministic (seeded from the landing spot, a value already
+## broadcast to every peer via cast_landed), not a true per-peer random
+## walk -- every peer's own LureAnimator instance computes the identical
+## drift offset from the same seed + elapsed time, no extra sync needed,
+## same reasoning as the arc tween itself. Matters because tangle
+## detection reads THIS node's global_position (see _update_line_collider
+## below) -- a host/client drift mismatch would mean what one machine sees
+## crossing isn't what the host's own tangle check actually used.
+const DRIFT_RADIUS: float = 0.5
+var _drift_seed: float = 0.0
+
 # Tunable apex height as a fraction of horizontal distance. Was 0.3, which
 # combined with the too-high rod tip (see player.tscn AttachPoint_Hand fix)
 # made casts look like they launched straight up rather than out over the
@@ -94,6 +107,7 @@ func play_arc(start_pos: Vector3, end_pos: Vector3, duration: float) -> void:
 func _on_arc_complete() -> void:
 	_active_tween = null
 	_anchor_position = global_position
+	_drift_seed = float(hash(_anchor_position) % 100000) / 100000.0 * TAU
 	# Stays visible, floating at the landing point as a bobber, until the
 	# reel resolves (see _process below) -- doesn't hide here anymore.
 	lure_landed.emit()
@@ -135,7 +149,8 @@ func _process(_delta: float) -> void:
 		# that keeps moving, drifts along with it: turning your camera was
 		# dragging the "landed" bobber around like it was rigidly welded to
 		# the rod instead of floating independently at a fixed water spot.
-		global_position = _anchor_position
+		# _compute_drift() adds the slow wander on top of that fixed anchor.
+		global_position = _anchor_position + _compute_drift()
 
 	var rod_tip := rod.get_node("RodTip") as Marker3D
 	if rod_tip:
@@ -147,6 +162,17 @@ func _process(_delta: float) -> void:
 		# here would silently disable tangling for every non-host player's
 		# line, the same class of bug the water-validation regression was.
 		_update_line_collider(rod_tip.global_position, global_position)
+
+
+## Two mismatched sine frequencies per axis reads as an organic, non-
+## repeating wander rather than a bobber tracing a perfect circle, while
+## staying a pure function of (seed, elapsed time) -- fully deterministic,
+## no state to keep in sync.
+func _compute_drift() -> Vector3:
+	var t := Time.get_ticks_msec() / 1000.0 + _drift_seed
+	var x := sin(t * 0.15) * 0.6 + sin(t * 0.37 + 1.3) * 0.4
+	var z := cos(t * 0.19 + 0.7) * 0.6 + cos(t * 0.29) * 0.4
+	return Vector3(x, 0.0, z) * DRIFT_RADIUS
 
 
 func _update_line(from_pos: Vector3, to_pos: Vector3) -> void:
