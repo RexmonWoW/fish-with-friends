@@ -32,6 +32,7 @@ func _on_local_player_spawned(player: Player) -> void:
 
 	var rod: Rod = player.equipment_slot.equipped_item as Rod
 	var bite_mgr := get_tree().get_first_node_in_group("bite_event_manager")
+	var cast_meter := get_tree().root.get_node("GameRoot/UILayer/CastMeter")
 
 	# ── Cancel while CHARGING ──
 	rod.start_charge()
@@ -39,13 +40,29 @@ func _on_local_player_spawned(player: Player) -> void:
 		print("FAIL: test setup problem -- didn't start charging")
 		get_tree().quit(1)
 		return
+
+	# The cancel hint needs to actually be discoverable -- confirm it shows
+	# while charging (there was previously no visible way to know
+	# right-click cancels anything).
+	cast_meter._process(0.0)
+	if not (cast_meter.get("_cancel_hint") as Control).visible:
+		print("FAIL: cancel hint isn't visible while charging")
+		get_tree().quit(1)
+		return
+	print("Cancel hint visible while charging.")
+
 	rod.request_cancel_cast()
 	await get_tree().process_frame
 	if rod.state != Rod.CastState.IDLE:
 		print("FAIL: cancel didn't return a charging rod to IDLE (state=%s)" % rod.state)
 		get_tree().quit(1)
 		return
-	print("Cancel while CHARGING works.")
+	cast_meter._process(0.0)
+	if (cast_meter.get("_cancel_hint") as Control).visible:
+		print("FAIL: cancel hint still showing after canceling back to IDLE")
+		get_tree().quit(1)
+		return
+	print("Cancel while CHARGING works, hint hides again.")
 
 	# Confirm casting works again right after.
 	rod.start_charge()

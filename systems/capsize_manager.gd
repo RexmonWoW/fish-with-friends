@@ -85,22 +85,38 @@ func _notify_capsize_started(required: int) -> void:
 ## sideways"). Repositions the LOCAL player only, same as
 ## NetworkManager._reposition_local_player() -- movement is client-
 ## authoritative per player, so the host can't move someone else's player
-## and have it stick. Pushed radially outward from the boat's center (where
-## they already happen to be standing relative to it), not toward any
-## specific point -- simple and direction-agnostic works for any trigger,
-## not just the Big Fish Event.
+## and have it stick.
+##
+## Tries up to 8 directions around the boat (starting with wherever the
+## player already happens to be standing relative to it), not just one --
+## a single unvalidated probe could land off the map's edge or into other
+## geometry depending on boat orientation, and the old fallback (use the
+## probe's position even if WaterValidator rejected it) could strand the
+## player floating at deck height with no water and no gravity to bring
+## them down to it -- "still can't swim" (they were never actually
+## repositioned anywhere real).
 func _toss_into_water(player: Player) -> void:
 	var center := _boat_center()
-	var away := player.global_position - center
-	away.y = 0.0
-	if away.length_squared() < 0.01:
-		away = Vector3.FORWARD
-	away = away.normalized()
+	var base_away := player.global_position - center
+	base_away.y = 0.0
+	if base_away.length_squared() < 0.01:
+		base_away = Vector3.FORWARD
+	base_away = base_away.normalized()
 
-	var probe := center + away * (_boat_radius() + 4.0)
 	var map := NetworkManager.get_current_map()
-	var water_point: Variant = WaterValidator.find_water_point(probe, map)
-	player.global_position = water_point if water_point != null else probe
+	var clearance := _boat_radius() + 4.0
+
+	for attempt in range(8):
+		var direction := base_away.rotated(Vector3.UP, (TAU / 8.0) * attempt)
+		var probe := center + direction * clearance
+		var water_point: Variant = WaterValidator.find_water_point(probe, map)
+		if water_point != null:
+			player.global_position = water_point
+			return
+	# All 8 directions failed (very unlikely) -- leave the player where
+	# they already are rather than teleporting them somewhere unvalidated.
+	# Swim mode's free movement still works from here even if the starting
+	# spot isn't ideal.
 
 
 func _boat_center() -> Vector3:
