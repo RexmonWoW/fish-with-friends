@@ -51,6 +51,18 @@ func _ready() -> void:
 	EventBus.big_fish_event_active.connect(_on_event_active)
 	EventBus.big_fish_state_updated.connect(_on_state_updated)
 	EventBus.big_fish_event_resolved.connect(_on_event_resolved)
+	# Safety net: this UI (and its world marker) should never legitimately
+	# outlive the round it started in -- if it somehow does, a round
+	# boundary is the one signal guaranteed to still fire and clean it up.
+	RunState.round_ended.connect(_on_round_boundary)
+
+
+func _on_round_boundary(_round_number: int, _day_number: int) -> void:
+	_is_local_participant = false
+	_local_qte_prompt = -1
+	_clear_bars()
+	_clear_marker()
+	hide()
 
 
 func _build_ui() -> void:
