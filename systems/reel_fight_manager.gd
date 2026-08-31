@@ -9,19 +9,30 @@ extends Node
 ##
 ## What this adds: the angler's own self-reported progress (0..1, see
 ## report_progress) moves the REAL bobber along the water's surface from
-## where it landed toward the rod tip, broadcast so every nearby peer sees
+## where it landed toward the angler, broadcast so every nearby peer sees
 ## the same fight -- "doesn't need to be exact" per direction, so this is
-## deliberately simpler than it sounds: no bob, no per-QTE kick, just an
-## eased position every tick. Same "unreliable, self-correcting" broadcast
-## every other continuous sync in this codebase already uses (e.g. Big Fish
-## Event's own collective-progress broadcast).
-
-## How fast the displayed position eases toward the angler's raw reported
-## progress -- not instant, so a twitchy Stardew fill/drain frame doesn't
-## snap the world bobber around.
+## deliberately simpler than it sounds: just an eased position every tick,
+## plus a quick sideways tug while a QTE is active (report_kick). Same
+## "unreliable, self-correcting" broadcast every other continuous sync in
+## this codebase already uses (e.g. Big Fish Event's own collective-
+## progress broadcast).
+##
+## Playtest: closing toward the ROD TIP specifically (rather than the
+## player) meant just looking around while reeling -- the rod is camera-
+## attached -- visibly dragged the bobber along with it, "floaty, moves
+## with the rod." Closing toward the player's own position instead stays
+## put under camera movement; only actually walking (or real progress)
+## moves it.
 const PROGRESS_SMOOTH_RATE: float = 3.0
 
-var _fights: Dictionary = {}  # peer_id (int) -> {anchor: Vector3, progress: float, display_progress: float}
+## "The fish tugs left or right" while a QTE is active (GDD) -- a sideways
+## offset perpendicular to the anchor-to-player line, decaying back to
+## nothing over KICK_DURATION. Reported once per QTE start (see
+## ReelMinigame._start_qte), not a magnitude stream.
+const KICK_DURATION: float = 0.4
+const KICK_STRENGTH: float = 0.4
+
+var _fights: Dictionary = {}  # peer_id (int) -> {anchor, progress, display_progress, kick_dir, kick_timer}
 
 
 func _ready() -> void:
@@ -34,7 +45,10 @@ func _ready() -> void:
 ## Called by BiteEventManager (host-only) the moment a bite fires -- needs
 ## the real landing spot, which bite_started's public signal doesn't carry.
 func start_fight(peer_id: int, anchor: Vector3) -> void:
-	_fights[peer_id] = {"anchor": anchor, "progress": 0.0, "display_progress": 0.0}
+	_fights[peer_id] = {
+		"anchor": anchor, "progress": 0.0, "display_progress": 0.0,
+		"kick_dir": 0.0, "kick_timer": 0.0,
+	}
 
 
 ## Called by BiteEventManager once the fight is over, one way or another
@@ -56,6 +70,8 @@ func _process(delta: float) -> void:
 		f["display_progress"] = lerpf(
 			f["display_progress"], f["progress"], clampf(PROGRESS_SMOOTH_RATE * delta, 0.0, 1.0)
 		)
+		if f["kick_timer"] > 0.0:
+			f["kick_timer"] = maxf(f["kick_timer"] - delta, 0.0)
 		var pos: Variant = _compute_bobber_world_position(peer_id, f)
 		if pos != null:
 			payload[peer_id] = pos
@@ -67,17 +83,35 @@ func _compute_bobber_world_position(peer_id: int, f: Dictionary) -> Variant:
 	var player: Player = NetworkManager.spawned_players.get(peer_id)
 	if player == null:
 		return null
-	var rod := player.equipment_slot.equipped_item as Rod
-	var rod_tip := (rod.get_node_or_null("RodTip") as Marker3D) if rod else null
-	var near_point: Vector3 = rod_tip.global_position if rod_tip else player.global_position
+	var near_point: Vector3 = player.global_position
 
 	var anchor: Vector3 = f["anchor"]
 	var t: float = f["display_progress"]
-	# XZ closes toward the rod tip as progress builds; Y stays pinned to the
+	var anchor_xz := Vector2(anchor.x, anchor.z)
+	var near_xz := Vector2(near_point.x, near_point.z)
+	# XZ closes toward the angler as progress builds; Y stays pinned to the
 	# anchor's original (water-surface) height -- the bobber reels in ALONG
 	# the water, it never lifts off it.
-	var xz := Vector2(anchor.x, anchor.z).lerp(Vector2(near_point.x, near_point.z), t)
+	var xz := anchor_xz.lerp(near_xz, t)
+	xz += _compute_kick(f, anchor_xz, near_xz)
 	return Vector3(xz.x, anchor.y, xz.y)
+
+
+## "The fish tugs left or right" while a QTE is active -- perpendicular to
+## the anchor-to-angler line so it reads as a sideways dart regardless of
+## which way the fight happens to be facing, linearly fading back to
+## nothing over KICK_DURATION.
+func _compute_kick(f: Dictionary, anchor_xz: Vector2, near_xz: Vector2) -> Vector2:
+	var timer: float = f["kick_timer"]
+	if timer <= 0.0:
+		return Vector2.ZERO
+	var line := near_xz - anchor_xz
+	if line.length_squared() < 0.0001:
+		line = Vector2.DOWN
+	line = line.normalized()
+	var perp := Vector2(-line.y, line.x)
+	var kick_t := timer / KICK_DURATION  # 1.0 (just triggered) -> 0.0 (faded out)
+	return perp * (f["kick_dir"] as float) * KICK_STRENGTH * kick_t
 
 
 @rpc("authority", "call_local", "unreliable")
@@ -97,6 +131,25 @@ func _request_report_progress(progress: float) -> void:
 	var peer_id := _sender_peer_id()
 	if _fights.has(peer_id):
 		_fights[peer_id]["progress"] = clampf(progress, 0.0, 1.0)
+
+
+## Called by ReelMinigame the moment a QTE prompt starts firing -- reliable
+## and discrete (not a per-frame stream like progress), so a real tug can't
+## just get silently dropped like an unreliable packet could.
+func report_kick() -> void:
+	_request_report_kick.rpc()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_report_kick() -> void:
+	if not multiplayer.is_server():
+		return
+	var peer_id := _sender_peer_id()
+	if not _fights.has(peer_id):
+		return
+	var f: Dictionary = _fights[peer_id]
+	f["kick_dir"] = -1.0 if randf() < 0.5 else 1.0
+	f["kick_timer"] = KICK_DURATION
 
 
 func _sender_peer_id() -> int:

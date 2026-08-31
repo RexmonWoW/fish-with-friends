@@ -150,8 +150,16 @@ func _on_arc_complete() -> void:
 ## Bobber snaps into the fight position instantly the very first frame a
 ## fight starts otherwise (jumping from the WAITING_BITE anchor+drift point
 ## straight to wherever the fight math says it should be) -- eased instead,
-## same reasoning DRIFT_SMOOTH_RATE already exists for below.
+## same reasoning DRIFT_SMOOTH_RATE below exists for.
 const FIGHT_POSITION_SMOOTH_RATE: float = 6.0
+
+## Playtest: "pops when it lands." _compute_drift() samples a sine curve off
+## real elapsed engine time, not time-since-landing, so its very first
+## sample right after the arc completes is already some arbitrary non-zero
+## offset (up to DRIFT_RADIUS), not a smooth start from the true landing
+## point -- hard-setting position to that on frame one was the pop. Eased
+## instead, same fix shape as FIGHT_POSITION_SMOOTH_RATE above.
+const DRIFT_SMOOTH_RATE: float = 2.5
 
 
 func _process(delta: float) -> void:
@@ -188,7 +196,10 @@ func _process(delta: float) -> void:
 		# dragging the "landed" bobber around like it was rigidly welded to
 		# the rod instead of floating independently at a fixed water spot.
 		# _compute_drift() adds the slow wander on top of that fixed anchor.
-		global_position = _anchor_position + _compute_drift()
+		# Eased, not snapped -- see DRIFT_SMOOTH_RATE's doc comment above.
+		global_position = global_position.lerp(
+			_anchor_position + _compute_drift(), clampf(DRIFT_SMOOTH_RATE * delta, 0.0, 1.0)
+		)
 
 	var rod_tip := rod.get_node("RodTip") as Marker3D
 	if rod_tip:

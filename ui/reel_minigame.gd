@@ -343,6 +343,10 @@ func _start_qte() -> void:
 	# while the prompt is up (see _update_fish's QTE_FISH_BOLT_SPEED).
 	_fish_target = randf_range(0.0, 1.0)
 	_fish_retarget_timer = _qte_window
+	# Same moment, out in the world: a visible sideways tug on the real
+	# bobber (GDD: the fish "tugs left or right" during a QTE).
+	if _reel_fight_manager:
+		_reel_fight_manager.report_kick()
 
 
 func _on_qte_succeeded() -> void:
