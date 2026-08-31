@@ -16,6 +16,18 @@ extends Node
 
 const INTERACT_RADIUS: float = 1.2  ## how close to a corner counts as "there"
 
+## GDD Capsize Minigame: "physically tumble into the water. Funny is the
+## goal." Real impulse instead of a teleport -- mass 70 (Player.tscn), so
+## these give roughly a 5.7 m/s outward / 6.4 m/s upward launch. Placeholder
+## tunables, not final numbers (see PROGRESS.md).
+const TOSS_HORIZONTAL_IMPULSE: float = 400.0
+const TOSS_VERTICAL_IMPULSE: float = 450.0
+
+## How long real gravity/movement gets to carry the toss before swim mode
+## (gravity_scale = 0.0, locked level at the surface) takes over and the
+## safety-net check runs.
+const TOSS_SETTLE_SECONDS: float = 1.3
+
 var _active: bool = false
 var _required_corners: int = 0
 var _claimed_by: Dictionary = {}  # corner_index (int) -> peer_id (int)
@@ -75,27 +87,60 @@ func _notify_capsize_started(required: int) -> void:
 	EventBus.capsize_started.emit(required)
 	var local_player: Player = NetworkManager.spawned_players.get(multiplayer.get_unique_id())
 	if local_player:
-		local_player.enter_swim_physics()
 		_toss_into_water(local_player)
 
 
-## Free-swim physics alone isn't enough -- a player capsized while standing
-## on the boat deck just sits there unable to move, blocked by the Hull's
-## own collision (reported as "can't move, you're just on the ground
-## sideways"). Repositions the LOCAL player only, same as
-## NetworkManager._reposition_local_player() -- movement is client-
+## GDD Capsize Minigame: launches the LOCAL player outward/up with a real
+## impulse and lets them physically tumble into the water under normal
+## gravity, instead of teleporting them there -- movement is client-
 ## authoritative per player, so the host can't move someone else's player
-## and have it stick.
+## and have it stick, same reasoning NetworkManager._reposition_local_player()
+## already uses.
 ##
-## Tries up to 8 directions around the boat (starting with wherever the
-## player already happens to be standing relative to it), not just one --
-## a single unvalidated probe could land off the map's edge or into other
-## geometry depending on boat orientation, and the old fallback (use the
-## probe's position even if WaterValidator rejected it) could strand the
-## player floating at deck height with no water and no gravity to bring
-## them down to it -- "still can't swim" (they were never actually
-## repositioned anywhere real).
+## Deliberately does NOT call enter_swim_physics() yet -- swim mode's
+## gravity_scale = 0.0 would kill the arc dead the instant it engaged.
+## Normal gravity/movement gets TOSS_SETTLE_SECONDS to carry the tumble;
+## swim mode (and the safety-net check below) only takes over after that.
 func _toss_into_water(player: Player) -> void:
+	var center := _boat_center()
+	var base_away := player.global_position - center
+	base_away.y = 0.0
+	if base_away.length_squared() < 0.01:
+		base_away = Vector3.FORWARD
+	base_away = base_away.normalized()
+
+	var impulse := base_away * TOSS_HORIZONTAL_IMPULSE + Vector3.UP * TOSS_VERTICAL_IMPULSE
+	player.apply_capsize_toss(impulse)
+
+	var timer := get_tree().create_timer(TOSS_SETTLE_SECONDS)
+	timer.timeout.connect(func() -> void:
+		if not is_instance_valid(player):
+			return
+		player.enter_swim_physics()
+		_ensure_player_in_water(player)
+	)
+
+
+## Safety net: real physics can (rarely) carry a tossed player somewhere
+## WaterValidator would reject -- into geometry, off the map edge -- where
+## the old "can't move, stuck on the boat deck" bug class could resurface.
+## Only repositions if wherever they actually landed isn't close to a real
+## water surface; a normal toss that landed fine is left alone.
+func _ensure_player_in_water(player: Player) -> void:
+	var map := NetworkManager.get_current_map()
+	var water_point: Variant = WaterValidator.find_water_point(player.global_position, map)
+	if water_point != null and absf((water_point as Vector3).y - player.global_position.y) < 1.0:
+		return  # already settled somewhere reasonable -- the toss did its job
+	_reposition_to_safe_water_point(player)
+
+
+## Exact same validated-probing fallback the toss unconditionally used to
+## do every time -- now only reached when the physics toss actually needs
+## rescuing. Tries up to 8 directions around the boat (starting with
+## wherever the player already happens to be relative to it), not just
+## one -- a single unvalidated probe could land off the map's edge or into
+## other geometry depending on boat orientation.
+func _reposition_to_safe_water_point(player: Player) -> void:
 	var center := _boat_center()
 	var base_away := player.global_position - center
 	base_away.y = 0.0
@@ -115,10 +160,7 @@ func _toss_into_water(player: Player) -> void:
 			# placing the player's ORIGIN there embeds half their capsule
 			# (radius 0.4) inside the solid water collision box underneath,
 			# which the physics solver then has to spend time resolving
-			# every step. Clear the surface by a real margin instead (the
-			# actual "capsize -- can't move" bug turned out to be
-			# elsewhere, in Player._physics_process's swim branch -- this
-			# is a separate, worthwhile defensive fix on its own).
+			# every step. Clear the surface by a real margin instead.
 			player.global_position = (water_point as Vector3) + Vector3(0.0, 0.6, 0.0)
 			return
 	# All 8 directions failed (very unlikely) -- leave the player where

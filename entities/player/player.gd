@@ -183,6 +183,14 @@ func enter_swim_physics() -> void:
 	linear_velocity = Vector3.ZERO
 
 
+## GDD Capsize Minigame: a real physics launch instead of a teleport --
+## called BEFORE enter_swim_physics() (see CapsizeManager._toss_into_water),
+## so this still has normal gravity/movement to actually arc through
+## instead of swim mode's gravity_scale = 0.0 killing it dead on arrival.
+func apply_capsize_toss(impulse: Vector3) -> void:
+	apply_central_impulse(impulse)
+
+
 func exit_swim_physics() -> void:
 	is_swimming = false
 	gravity_scale = 1.0

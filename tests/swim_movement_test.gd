@@ -37,7 +37,12 @@ func _on_local_player_spawned(player: Player) -> void:
 
 	var capsize_manager := get_tree().get_first_node_in_group("capsize_manager")
 	capsize_manager.start_capsize()
-	await get_tree().process_frame
+
+	# GDD Capsize Minigame: capsizing is now a real physics toss, not an
+	# instant teleport -- swim mode (and is_swimming) only engages once
+	# CapsizeManager.TOSS_SETTLE_SECONDS of real gravity/impulse has had a
+	# chance to carry the tumble. Wait that out before checking swim state.
+	await get_tree().create_timer(CapsizeManager.TOSS_SETTLE_SECONDS + 0.3).timeout
 
 	if not player.is_swimming:
 		print("FAIL: test setup problem -- player never entered swim mode")

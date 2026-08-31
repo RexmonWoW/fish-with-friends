@@ -69,27 +69,8 @@ func _on_local_player_spawned(player1: Player) -> void:
 		return
 	print("Capsize started, required=%d" % _started_required)
 
-	if not player1.is_swimming or player1.gravity_scale != 0.0:
-		print("FAIL: local player didn't enter swim mode (is_swimming=%s gravity_scale=%s)" %
-			[player1.is_swimming, player1.gravity_scale])
-		get_tree().quit(1)
-		return
-	print("Local player is swimming.")
-
-	# Free-swim physics alone doesn't help if the player's still sitting on
-	# the boat deck, blocked by its collision -- "capsized but can't move."
-	# Confirm they actually got tossed clear of the boat, not just
-	# switched to swim mode in place.
-	var boat_center: Vector3 = capsize_manager._boat_center()
-	var boat_radius: float = capsize_manager._boat_radius()
-	if boat_center.distance_to(player1.global_position) <= boat_radius:
-		print("FAIL: local player is still within the boat's radius after capsizing -- not actually in the water")
-		get_tree().quit(1)
-		return
-	print("Local player tossed clear of the boat into the water.")
-
-	# Rod should be stowed to the back (an empty, same as while holding a
-	# fish), not left sitting visibly in-hand while swimming.
+	# Rod stow / cast-block are driven directly by capsize_started (not by
+	# is_swimming/physics settling), so these are still immediate.
 	if player1.equipment_slot.equipped_item is Rod:
 		print("FAIL: rod still equipped in-hand while swimming")
 		get_tree().quit(1)
@@ -100,13 +81,50 @@ func _on_local_player_spawned(player1: Player) -> void:
 		return
 	print("Rod stowed to the back.")
 
-	# Casting should be blocked entirely while swimming.
 	rod1.start_charge()
 	if rod1.state == Rod.CastState.CHARGING:
 		print("FAIL: could start charging a cast while swimming")
 		get_tree().quit(1)
 		return
 	print("Casting correctly blocked while swimming.")
+
+	# GDD Capsize Minigame: real physics toss now, not an instant teleport --
+	# confirm the launch actually happened (not silently relying on the
+	# safety-net fallback), and that swim mode hasn't jumped the gun and
+	# killed the arc early (gravity_scale = 0.0 while swimming).
+	await get_tree().create_timer(0.2).timeout
+	if player1.is_swimming:
+		print("FAIL: swim mode engaged before the toss's settle window -- would zero the arc via gravity_scale=0")
+		get_tree().quit(1)
+		return
+	if player1.linear_velocity.length() < 3.0:
+		print("FAIL: toss impulse doesn't seem to have been applied (linear_velocity=%s)" % player1.linear_velocity)
+		get_tree().quit(1)
+		return
+	print("Toss impulse applied, real physics carrying the tumble (linear_velocity=%s)." % player1.linear_velocity)
+
+	# Now wait out the rest of the settle window -- swim mode should engage
+	# and the safety net should confirm/ensure they're actually in the water.
+	await get_tree().create_timer(CapsizeManager.TOSS_SETTLE_SECONDS + 0.3).timeout
+
+	if not player1.is_swimming or player1.gravity_scale != 0.0:
+		print("FAIL: local player didn't enter swim mode (is_swimming=%s gravity_scale=%s)" %
+			[player1.is_swimming, player1.gravity_scale])
+		get_tree().quit(1)
+		return
+	print("Local player is swimming.")
+
+	# Free-swim physics alone doesn't help if the player's still sitting on
+	# the boat deck, blocked by its collision -- "capsized but can't move."
+	# Confirm they actually ended up clear of the boat, not just switched
+	# to swim mode in place.
+	var boat_center: Vector3 = capsize_manager._boat_center()
+	var boat_radius: float = capsize_manager._boat_radius()
+	if boat_center.distance_to(player1.global_position) <= boat_radius:
+		print("FAIL: local player is still within the boat's radius after capsizing -- not actually in the water")
+		get_tree().quit(1)
+		return
+	print("Local player tossed clear of the boat into the water.")
 
 	var corners: Array = capsize_manager._corner_markers
 	var corner0_pos: Vector3 = (corners[0] as Marker3D).global_position
