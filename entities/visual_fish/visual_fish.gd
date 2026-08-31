@@ -45,18 +45,33 @@ var _wander_seed: float = 0.0
 var _wander_spawn_t: float = 0.0
 
 
+## GDD Bite Detection: "flat dark silhouette blob at/under the water
+## surface, Pokemon/Animal Crossing/Fishing Resort style" -- a squashed
+## sphere (non-uniform scale gives the oval, no separate mesh shape
+## needed) sitting just under the anchor/wander Y (which sits AT the water
+## surface, see ShadowWander), instead of the old upright 3D capsule.
+## Same placeholder-is-simple convention as everywhere else (bobber, rod,
+## livewell fish) -- real shadow art is Nick's.
+const BLOB_DEPTH: float = 0.06        ## constant flatness regardless of size
+const BLOB_SUBMERGE: float = 0.1      ## how far under the water surface it sits
+const BLOB_LENGTH_FRACTION: float = 0.6   ## along the "long" axis
+const BLOB_WIDTH_FRACTION: float = 0.35   ## along the "short" axis
+
+
 func _ready() -> void:
 	add_to_group("visual_fish")  ## lookup for tests
 	_mesh = MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.5
+	sphere.height = 1.0
+	_mesh.mesh = sphere
+
 	var length := _length_for_size()
-	capsule.height = length
-	capsule.radius = length * 0.3
-	_mesh.mesh = capsule
-	_mesh.rotation.z = PI / 2.0  # lay flat, matches Livewell's swimming-fish convention
+	_mesh.scale = Vector3(length * BLOB_LENGTH_FRACTION, BLOB_DEPTH, length * BLOB_WIDTH_FRACTION)
+	_mesh.position.y = -BLOB_SUBMERGE
 
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.02, 0.02, 0.05, 0.5)
+	material.albedo_color = Color(0.02, 0.02, 0.05, 0.55)
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mesh.set_surface_override_material(0, material)
