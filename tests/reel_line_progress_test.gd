@@ -41,7 +41,7 @@ func _on_local_player_spawned(player: Player) -> void:
 	await get_tree().process_frame
 
 	var rod: Rod = player.equipment_slot.equipped_item as Rod
-	var lure := rod.get_node("LureAnimator") as Node3D
+	var lure := rod.get_node("LureAnimator") as LureAnimator
 	var rod_tip := rod.get_node("RodTip") as Marker3D
 
 	EventBus.bite_hook_window_opened.connect(func(peer_id, _duration):
@@ -65,7 +65,7 @@ func _on_local_player_spawned(player: Player) -> void:
 		get_tree().quit(1)
 		return
 
-	var dist_at_start := lure.global_position.distance_to(rod_tip.global_position)
+	var dist_at_start := lure.get_bobber_position().distance_to(rod_tip.global_position)
 	print("Bobber-to-rod-tip distance at reel start: %.2f" % dist_at_start)
 
 	var reel := get_tree().root.get_node("GameRoot/UILayer/ReelMinigame")
@@ -82,7 +82,7 @@ func _on_local_player_spawned(player: Player) -> void:
 			get_tree().quit(1)
 			return
 
-	var dist_mid := lure.global_position.distance_to(rod_tip.global_position)
+	var dist_mid := lure.get_bobber_position().distance_to(rod_tip.global_position)
 	print("Bobber-to-rod-tip distance held near 0.65 progress: %.2f" % dist_mid)
 	if dist_mid >= dist_at_start * 0.85:
 		print("FAIL: bobber didn't meaningfully reel IN as progress rose")
@@ -100,7 +100,7 @@ func _on_local_player_spawned(player: Player) -> void:
 			get_tree().quit(1)
 			return
 
-	var dist_low := lure.global_position.distance_to(rod_tip.global_position)
+	var dist_low := lure.get_bobber_position().distance_to(rod_tip.global_position)
 	print("Bobber-to-rod-tip distance held near 0.15 progress: %.2f" % dist_low)
 	if dist_low <= dist_mid * 1.15:
 		print("FAIL: bobber didn't meaningfully reel back OUT as progress fell")
