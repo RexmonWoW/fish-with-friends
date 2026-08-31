@@ -8,7 +8,7 @@ Live status file. GDD.md is the plan; this is where things actually stand. Updat
 3. [x] Folder structure + scene tree.
 4. [x] Fish data resource system — 5 placeholder species, real weighted spawn. Needs real species content + rarity-tiered weighting.
 5. [x] Casting mechanic — full aim/charge/release/validate pipeline. Confirmed on 2 machines.
-6. [x] Reel minigame + QTE — full GDD mechanic, perfect-catch bonus wired.
+6. [x] Reel minigame + QTE — full GDD mechanic, perfect-catch bonus wired. Real bobber now visibly reels in/out with the private progress bar, synced to every nearby peer (not pixel-exact by design). Reel Mechanic itself (the Stardew bar) still on hold pending planning.
 7. [x] Line tangling + tug of war — host-authoritative, confirmed working.
 8. [~] Shared livewell — hold/store(E)/grab(1-5)/toss(Q) interaction done. Still missing GDD's multi-player "negotiate when full" UX.
 9. [x] Big Fish Event — triggers once per day near the end of the day's final round. Tunable numbers still placeholder (Open Questions).
@@ -33,7 +33,7 @@ _Standing decisions worth remembering, not a changelog — see Session Log for w
 ## Next Up
 - **2-machine test in progress (passes 31-34) — movement CONFIRMED working.** Everything else still needs re-verification after four full rounds of real bugs surfacing as soon as things became testable, most recently: capsize left players unable to move at all (a velocity-clobbering ordering bug in Player's swim branch), line tangling's collision radius was 10x too tight to ever realistically trigger. Treat nothing here as done until a clean pass with no new reports.
 - **Bite Detection was reworked into a standing ambient population (2026-08-30)** — shadows now wander continuously and get called by a nearby cast instead of spawning per-cast; a miss sends one back to wandering instead of despawning it. New networked shape, still not tested on 2 machines — headless-tested solo only so far.
-- **Reel Mechanic rework was reset (2026-08-30)** — the post-fdd3b46 rebuild missed the mark and got rolled back; rebuilding it is next, see the planning chat for the revised direction before starting.
+- **Reel Mechanic: first piece back after the reset (2026-08-30)** — the real bobber/line now reels in/out with progress, synced to every peer (new `ReelFightManager`, deliberately simpler than the reset version: no bob/kick flourish). The Stardew bar itself is still the old unchanged version — everything else about the reel/Big Fish rework stays on hold pending planning. Not yet tested on 2 machines.
 - **Balance note (2026-08-30)**: Big Fish Event still feels too easy even with the QTE label now visible. Hold off retuning again until it's been tested with the label fix in place first.
 - **Design ask, not built yet**: make the Big Fish Event feel more like a real (easier) mini reel — right now it's just hold-and-wait with an occasional QTE. Needs a planning/design pass before building.
 - **Explicitly deferred by request**: livewell fish should actually swim around, spawn, and despawn (currently static placement per slot) — do after the current bug list is clean.
@@ -104,3 +104,5 @@ _(one line per session)_
 - 2026-08-30 — Reset repo to fdd3b46 — reel/big fish rework after that point missed the mark, rebuilding from here. Prior HEAD kept at branch `pre-reset-backup` for reference.
 - 2026-08-30 — Cherry-picked Bite Detection and bobber drift back onto main from `pre-reset-backup` — both tested clean and weren't part of what went wrong with the reel rework.
 - 2026-08-30 (planning update) — Reworked Bite Detection into a standing ambient shadow population (new `ShadowWander` helper, rewritten `VisualFishSpawner`) instead of spawn-per-cast; a nearby cast calls one in, a miss releases it back to wandering, only a catch despawns one for good, and a growing search radius keeps a blind cast from ever being dead.
+- 2026-08-30 — Shadow size now scales off the fish's actual size stat (rolled per-shadow, same call a real catch uses) instead of money value.
+- 2026-08-30 — Added back the real bobber reeling in/out with reel progress, synced to every nearby peer (new, simpler `ReelFightManager`) -- first scoped piece of the reel rework, rest stays on hold for planning.

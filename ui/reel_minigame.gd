@@ -66,6 +66,11 @@ const QTE_PROMPTS: Array[Dictionary] = [
 var _rod: Rod = null
 var _active: bool = false
 
+## Cached once per reel (looked up on start, not every frame) -- reports
+## this client's own progress so the world bobber (host-driven, visible to
+## every nearby peer) reels in/out along with this private UI.
+var _reel_fight_manager: Node = null
+
 ## Per-reel, computed from the hooked fish's value in _try_start_reel --
 ## see the BASE/HARD const pairs above.
 var _fish_speed: float = FISH_SPEED
@@ -222,6 +227,7 @@ func _try_start_reel(fish_data: FishData, caster_peer_id: int) -> void:
 
 	_rod = rod
 	_rod.state = Rod.CastState.REELING
+	_reel_fight_manager = get_tree().get_first_node_in_group("reel_fight_manager")
 
 	var t := _difficulty_t(fish_data)
 	_fish_speed = lerpf(FISH_SPEED, FISH_SPEED_HARD, t)
@@ -268,6 +274,9 @@ func _process(delta: float) -> void:
 	_update_fish(delta)
 	_update_progress(delta)
 	_update_visuals()
+
+	if _reel_fight_manager:
+		_reel_fight_manager.report_progress(_progress)
 
 	if _progress >= 1.0:
 		_finish(true)
@@ -396,3 +405,4 @@ func _finish(success: bool) -> void:
 		_rod.state = Rod.CastState.IDLE  # optimistic, same pattern as Rod.release_cast
 		_rod.request_reel_resolution(success, was_perfect)
 	_rod = null
+	_reel_fight_manager = null

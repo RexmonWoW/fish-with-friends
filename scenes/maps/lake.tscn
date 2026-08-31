@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://ce2kcc3fap3iq"]
+[gd_scene load_steps=10 format=3 uid="uid://ce2kcc3fap3iq"]
 
 [ext_resource type="Script" path="res://scenes/maps/lake.gd" id="1_lakescript"]
 [ext_resource type="PackedScene" path="res://entities/livewell/livewell.tscn" id="2_livewell"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://systems/capsize_manager.gd" id="7_capsizemgr"]
 [ext_resource type="Script" path="res://systems/big_fish_event_manager.gd" id="8_bigfishmgr"]
 [ext_resource type="Script" path="res://systems/visual_fish_spawner.gd" id="9_visualfishspawner"]
+[ext_resource type="Script" path="res://systems/reel_fight_manager.gd" id="10_reelfightmgr"]
 
 [sub_resource type="Environment" id="Environment_lake"]
 background_mode = 1
@@ -77,6 +78,9 @@ script = ExtResource("8_bigfishmgr")
 
 [node name="VisualFishSpawner" type="Node" parent="PlayableArea"]
 script = ExtResource("9_visualfishspawner")
+
+[node name="ReelFightManager" type="Node" parent="PlayableArea"]
+script = ExtResource("10_reelfightmgr")
 
 [node name="PlayerSpawnPoints" type="Node3D" parent="PlayableArea"]
 

@@ -203,6 +203,13 @@ func _fire_bite(endpoint: Vector3, caster_peer_id: int, fish_data: FishData) -> 
 	fish.global_position = endpoint
 	_active_fish[caster_peer_id] = fish
 
+	# GDD Reel Mechanic: the real bobber reels in as this fight progresses,
+	# visible to every nearby peer -- needs the real landing spot, which the
+	# public bite_started signal doesn't carry.
+	var reel_fight_manager: Node = get_tree().get_first_node_in_group("reel_fight_manager")
+	if reel_fight_manager:
+		reel_fight_manager.start_fight(caster_peer_id, endpoint)
+
 	# Broadcast, not a local emit -- otherwise only the host ever sees their
 	# own bite_started, and a joining client's ReelMinigame never appears.
 	_notify_bite.rpc(fish_data, caster_peer_id)
@@ -227,6 +234,9 @@ func _cancel_pending(caster_peer_id: int) -> void:
 	var spawner: Node = get_tree().get_first_node_in_group("visual_fish_spawner")
 	if spawner:
 		spawner.cancel_call(caster_peer_id)  # no-op if nothing was called for them yet
+	var reel_fight_manager: Node = get_tree().get_first_node_in_group("reel_fight_manager")
+	if reel_fight_manager:
+		reel_fight_manager.cancel_fight(caster_peer_id)  # no-op if no fight was active yet
 
 
 ## Called by TangleManager (host-side) when a tangle-loser's line snaps --
@@ -260,6 +270,9 @@ func resolve_reel(caster_peer_id: int, success: bool, was_perfect: bool) -> void
 				_give_catch_to_player(fish, caster_peer_id)
 			fish.queue_free()
 		_active_fish.erase(caster_peer_id)
+	var reel_fight_manager: Node = get_tree().get_first_node_in_group("reel_fight_manager")
+	if reel_fight_manager:
+		reel_fight_manager.cancel_fight(caster_peer_id)
 	_notify_reel_finished.rpc(success, caster_peer_id)
 
 

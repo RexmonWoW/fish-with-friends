@@ -38,6 +38,14 @@ signal bite_started(fish_data: FishData, caster_peer_id: int)
 ## itself to IDLE optimistically on the owning client.
 signal reel_finished(success: bool, caster_peer_id: int)
 
+## Emitted on all peers, unreliable, roughly every host tick while any
+## reel fight is active. GDD Reel Mechanic: the private Stardew bar stays
+## each angler's own control, but the real bobber's position is a synced
+## display of it -- payload is {peer_id (int) -> Vector3}, one entry per
+## angler currently reeling. Listeners: LureAnimator (moves that peer's
+## bobber/line instead of leaving it drifting at anchor).
+signal reel_fight_state_updated(states: Dictionary)
+
 # ── Livewell signals ───────────────────────────────────────────────────────────
 
 ## Emitted host-side whenever a Livewell's slots change (add or remove).

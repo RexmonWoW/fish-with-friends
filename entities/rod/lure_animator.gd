@@ -15,6 +15,18 @@ var _active_tween: Tween = null
 var _is_out: bool = false  ## true from cast_landed until Rod.state returns to IDLE
 var _anchor_position: Vector3 = Vector3.ZERO  ## world-space landing spot, once landed
 
+## GDD Reel Mechanic: while a reel fight is active for this rod's owner,
+## ReelFightManager (host) is the real authority on where the bobber is --
+## broadcasts the actual world position every tick (EventBus.
+## reel_fight_state_updated). Cached here and eased toward in _process
+## instead of the anchor+drift used while just waiting on a bite. Not
+## gated to Rod.state == REELING (that's only reliably true on the
+## owner's own machine today, see ReelMinigame -- every OTHER peer's
+## mirror of this rod never gets told) -- having a live fight position at
+## all is signal enough on its own.
+var _fight_position: Vector3 = Vector3.ZERO
+var _has_fight_position: bool = false
+
 ## GDD Line Tangling: "Landed bobbers drift slowly in a random direction
 ## while waiting for a bite (small radius) -- makes lines crossing more
 ## common." Deterministic (seeded from the landing spot, a value already
@@ -40,6 +52,7 @@ func _ready() -> void:
 	_build_line_visual()
 	hide()  # invisible until a cast is in-flight/out
 	EventBus.cast_landed.connect(_on_cast_landed)
+	EventBus.reel_fight_state_updated.connect(_on_fight_state_updated)
 
 
 func _build_lure_visual() -> void:
@@ -66,6 +79,16 @@ func _build_line_visual() -> void:
 	# material_override applies regardless of surface count.
 	_line_mesh.material_override = material
 	add_child(_line_mesh)
+
+
+## Not owner-gated -- same reasoning as the line/collider updates below,
+## every peer's mirror of every reeling rod needs to track the real fight.
+func _on_fight_state_updated(states: Dictionary) -> void:
+	var rod := get_parent() as Rod
+	if rod == null or not states.has(rod.owner_peer_id):
+		return
+	_fight_position = states[rod.owner_peer_id]
+	_has_fight_position = true
 
 
 func _on_cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int) -> void:
@@ -124,7 +147,14 @@ func _on_arc_complete() -> void:
 		rod.check_line_overlaps_for_tangle()
 
 
-func _process(_delta: float) -> void:
+## Bobber snaps into the fight position instantly the very first frame a
+## fight starts otherwise (jumping from the WAITING_BITE anchor+drift point
+## straight to wherever the fight math says it should be) -- eased instead,
+## same reasoning DRIFT_SMOOTH_RATE already exists for below.
+const FIGHT_POSITION_SMOOTH_RATE: float = 6.0
+
+
+func _process(delta: float) -> void:
 	if not _is_out:
 		return
 
@@ -137,11 +167,19 @@ func _process(_delta: float) -> void:
 	# whereas Rod.state is reset optimistically on the owning client already.
 	if rod.state == Rod.CastState.IDLE:
 		_is_out = false
+		_has_fight_position = false
 		hide()
 		_set_line_collider_active(rod, false)
 		return
 
-	if _active_tween == null:
+	if _has_fight_position:
+		# GDD Reel Mechanic: the real bobber reels in/out along with the
+		# angler's own private progress bar, visible to every nearby peer --
+		# "doesn't need to be exact," so a plain eased lerp is enough.
+		global_position = global_position.lerp(
+			_fight_position, clampf(FIGHT_POSITION_SMOOTH_RATE * delta, 0.0, 1.0)
+		)
+	elif _active_tween == null:
 		# Re-assert the anchor every frame rather than trusting it to stay
 		# put on its own -- this node is parented under Rod, which is now
 		# rigidly camera-attached (see player.tscn's AttachPoint_Hand fix).
