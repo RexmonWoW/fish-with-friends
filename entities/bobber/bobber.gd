@@ -120,11 +120,18 @@ func _on_arc_complete() -> void:
 	landed.emit()
 
 
+## Review finding: this only ever SET the flag, never cleared it -- once a
+## fight ended (peer no longer in the broadcast payload, e.g. resolve_reel/
+## cancel_fight erased it host-side but other fights are still keeping the
+## broadcast alive), the bobber kept rendering at its last-known fight
+## position, frozen, instead of falling back to drift. Whichever it is
+## this tick is the truth.
 func _on_fight_state_updated(states: Dictionary) -> void:
-	if not states.has(owner_peer_id):
-		return
-	_fight_position = states[owner_peer_id]
-	_has_fight_position = true
+	if states.has(owner_peer_id):
+		_fight_position = states[owner_peer_id]
+		_has_fight_position = true
+	else:
+		_has_fight_position = false
 
 
 func _process(delta: float) -> void:

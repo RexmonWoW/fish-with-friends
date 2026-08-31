@@ -24,6 +24,18 @@ func _ready() -> void:
 	EventBus.cast_landed.connect(_on_cast_landed)
 
 
+## Review finding: the only thing that ever freed the bobber was this
+## node's own _process seeing rod.state == IDLE -- a disconnect mid-cast,
+## or this Rod/LureAnimator itself leaving the tree some other way, left
+## the bobber orphaned (parented under the map/root, nothing left to ever
+## free it). Belt-and-suspenders with the map-parenting below, which
+## cleans up the normal "round ends, map unloads" case on its own.
+func _exit_tree() -> void:
+	if _bobber and is_instance_valid(_bobber):
+		_bobber.queue_free()
+	_bobber = null
+
+
 func _build_line_visual() -> void:
 	_line_mesh = MeshInstance3D.new()
 	_line_mesh.mesh = ImmediateMesh.new()
@@ -51,7 +63,13 @@ func _on_cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: i
 		_bobber.queue_free()
 	_bobber = Bobber.new()
 	_bobber.owner_peer_id = caster_peer_id
-	get_tree().root.add_child(_bobber)
+	# Parented under the current map, not get_tree().root -- a round ending
+	# (map unloads) then cleans up any still-out bobber on its own, same as
+	# it already does for everything else IN that map. Falls back to root
+	# only if there's genuinely no map loaded (shouldn't happen -- casting
+	# itself requires one, see Rod.start_charge).
+	var map := NetworkManager.get_current_map()
+	(map if map else get_tree().root).add_child(_bobber)
 	_bobber.landed.connect(_on_bobber_landed)
 	_bobber.play_arc(start_pos, endpoint, flight_seconds)
 

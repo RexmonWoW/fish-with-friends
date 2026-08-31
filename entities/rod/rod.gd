@@ -195,7 +195,12 @@ func _notify_cast_cancelled() -> void:
 func force_cancel_cast() -> void:
 	if state == CastState.IDLE or state == CastState.BIG_FISH_EVENT:
 		return
-	if state == CastState.WAITING_BITE and multiplayer.is_server():
+	# Found while fixing a stale-fight-position bug: this only ever checked
+	# WAITING_BITE, so capsizing mid-REELING left BiteEventManager's Fish
+	# and ReelFightManager's fight entry both orphaned server-side forever
+	# (this rod's own state still correctly went IDLE and freed the local
+	# bobber, but the host-side bookkeeping never heard about it).
+	if (state == CastState.WAITING_BITE or state == CastState.REELING) and multiplayer.is_server():
 		var bite_manager: Node = get_tree().get_first_node_in_group("bite_event_manager")
 		if bite_manager:
 			bite_manager.cancel_pending_bite(owner_peer_id)
