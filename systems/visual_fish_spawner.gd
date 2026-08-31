@@ -46,6 +46,11 @@ var current_map_id: StringName = &""
 var _center: Vector3 = Vector3.ZERO
 var _next_id: int = 1
 
+## Cached at setup() -- this spawner's own map, so a deferred respawn (see
+## catch_shadow's timer) can tell whether the round it belongs to is still
+## the one actually running before spawning anything into it.
+var _map: Node = null
+
 ## Host-only source of truth. id -> {species, home, seed, spawn_t,
 ## target_pos, called_by (-1 = free), state}.
 var _shadows: Dictionary = {}
@@ -68,13 +73,23 @@ func _ready() -> void:
 ## BigFishEventManager uses). Only the host actually rolls/spawns anything.
 func setup(center: Vector3) -> void:
 	_center = center
+	_map = NetworkManager.get_current_map()
 	if not multiplayer.is_server():
 		return
 	for _i in AMBIENT_COUNT:
 		_spawn_new_ambient()
 
 
+## Bug: ambient shadows were parented at the scene root, not under the map
+## -- a round ending left them behind, still wandering (and, worse, still
+## getting caught/respawned into) right in the lobby instead of getting
+## cleaned up with everything else in the map that just unloaded. Guarded
+## against the current map having moved on (this spawner's round already
+## ended) for the same reason -- catch_shadow's deferred respawn timer can
+## fire well after that happens.
 func _spawn_new_ambient() -> void:
+	if NetworkManager.get_current_map() != _map:
+		return
 	var species: FishData = SpawnPool.roll_species(current_map_id)
 	if species == null:
 		push_warning("VisualFishSpawner: SpawnPool returned null for map '%s'" % current_map_id)
@@ -116,7 +131,11 @@ func _notify_spawn_ambient(id: int, species: FishData, home: Vector3, seed: floa
 	var fish := VISUAL_FISH_SCENE.instantiate() as VisualFish
 	fish.species = species
 	fish.size = size
-	get_tree().root.add_child(fish)
+	# Parented under the current map, not get_tree().root -- same lifecycle
+	# fix as the bobber's: a round ending (map unloads) then cleans up any
+	# still-out shadows on its own instead of leaving them stranded.
+	var map := NetworkManager.get_current_map()
+	(map if map else get_tree().root).add_child(fish)
 	fish.start_wandering(home, seed, spawn_t)
 	_local_fish[id] = fish
 
