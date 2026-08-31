@@ -13,3 +13,6 @@ func _ready() -> void:
 	$PlayableArea/CapsizeManager.setup(corners)
 
 	$PlayableArea/BigFishEventManager.setup(livewell.global_position, corners)
+
+	$PlayableArea/VisualFishSpawner.current_map_id = map_id
+	$PlayableArea/VisualFishSpawner.setup(livewell.global_position)

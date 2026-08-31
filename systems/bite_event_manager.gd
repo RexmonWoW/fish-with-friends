@@ -2,18 +2,30 @@ class_name BiteEventManager
 extends Node
 
 ## Host-authoritative. Owns the bite event lifecycle (GDD Bite Detection):
-## fish swim visibly as shadows instead of biting on an invisible timer. A
-## shadow approaches the landed bobber and strikes; the player presses to
-## set the hook in a short window. Miss it and the fish spooks off, another
-## rolls in after a pause. Hook-set success drops into the existing Reel
-## Mechanic exactly as before -- this rework only changes what happens
-## BEFORE bite_started fires, not what happens after.
+## fish are a standing ambient population (VisualFishSpawner) that swims
+## around continuously instead of biting on an invisible timer. Casting near
+## one calls it -- it breaks off and swims to the landed bobber; casting
+## where nothing's nearby isn't a dead cast, this just keeps polling for a
+## wandering shadow to drift into range (see CALL_RADIUS_GROWTH_PER_SEC).
+## Arrival opens a short hook-set window; miss it and the fish spooks back
+## off to wander again (still out there, callable by anyone). Hook-set
+## success drops into the existing Reel Mechanic exactly as before -- this
+## rework only changes what happens BEFORE bite_started fires, not what
+## happens after.
 
-const SHADOW_APPROACH_SECONDS: float = 2.5  ## time for a shadow to reach the bobber
 const HOOK_WINDOW_SECONDS: float = 1.0      ## how long the player has to set the hook once struck
-const SPOOK_PAUSE_SECONDS: float = 1.5      ## pause before another shadow rolls in after a miss
-const SHADOW_SPAWN_MIN_DIST: float = 3.0
-const SHADOW_SPAWN_MAX_DIST: float = 6.0
+const SPOOK_PAUSE_SECONDS: float = 1.5      ## pause before looking for another shadow after a miss
+
+## "Aiming well gets a faster, more certain bite; aiming blind means waiting
+## on whatever wanders by" (GDD) -- rather than a hard "nothing nearby, no
+## bite," the radius VisualFishSpawner.try_call_for() searches within grows
+## the longer a caster's been waiting, so a blind cast is never truly dead,
+## just slower and less precise. Growth rate is fast enough that even a
+## worst-case (a cast landing far from every shadow's whole wander loop)
+## resolves in a few seconds, not a real "wait and see" -- open question for
+## Nick on whether blind casts should feel slower than this (see PROGRESS.md).
+const CALL_RADIUS_BASE: float = 4.0
+const CALL_RADIUS_GROWTH_PER_SEC: float = 12.0
 
 ## Assign res://entities/fish/fish.tscn in the inspector.
 @export var fish_scene: PackedScene
@@ -69,11 +81,11 @@ func _on_cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: i
 
 
 ## One cast's full bite sequence, host-only: wait for the lure to actually
-## land, then cycle shadow-approaches-and-strikes / hook-set-window
-## attempts until the player successfully sets the hook (-> the existing
-## bite_started/reel flow, unchanged) or the sequence is canceled some
-## other way (recast, tangle loss, disconnect -- _cancel_pending() bumps
-## _sequence_id so this just quietly stops mattering).
+## land, then cycle waiting-for-a-shadow / hook-set-window attempts until
+## the player successfully sets the hook (-> the existing bite_started/reel
+## flow, unchanged) or the sequence is canceled some other way (recast,
+## tangle loss, disconnect -- _cancel_pending() bumps _sequence_id so this
+## just quietly stops mattering).
 func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: float) -> void:
 	var my_sequence := _next_sequence_id
 	_next_sequence_id += 1
@@ -85,22 +97,35 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		return
 
 	var spawner: Node = get_tree().get_first_node_in_group("visual_fish_spawner")
+	if spawner == null:
+		push_warning("BiteEventManager: no VisualFishSpawner found -- no bite possible.")
+		_pending.erase(caster_peer_id)
+		return
 
 	while true:
-		var species: FishData = SpawnPool.roll_species(current_map_id)
-		if species == null:
-			push_warning("BiteEventManager: SpawnPool returned null for map '%s'" % current_map_id)
-			_pending.erase(caster_peer_id)
-			return
+		# Poll for a wandering shadow within range, widening the search the
+		# longer this particular attempt (this shadow, this hook window) has
+		# been waiting -- see CALL_RADIUS_GROWTH_PER_SEC's doc comment above.
+		# Not a dead cast even if nothing's nearby yet.
+		var call_result: Dictionary = {}
+		var waited := 0.0
+		while call_result.is_empty():
+			var radius := CALL_RADIUS_BASE + CALL_RADIUS_GROWTH_PER_SEC * waited
+			call_result = spawner.try_call_for(caster_peer_id, endpoint, radius)
+			if not call_result.is_empty():
+				break
+			await get_tree().process_frame
+			waited += get_process_delta_time()
+			if _sequence_id.get(caster_peer_id, -1) != my_sequence:
+				return
 
-		if spawner:
-			var angle := randf() * TAU
-			var dist := randf_range(SHADOW_SPAWN_MIN_DIST, SHADOW_SPAWN_MAX_DIST)
-			var start_pos := endpoint + Vector3(cos(angle), 0.0, sin(angle)) * dist
-			spawner.spawn_shadow(caster_peer_id, species, start_pos, endpoint, SHADOW_APPROACH_SECONDS)
+		var shadow_id: int = call_result["id"]
+		var species: FishData = call_result["species"]
+		var travel_duration: float = call_result["duration"]
 
-		await get_tree().create_timer(SHADOW_APPROACH_SECONDS).timeout
+		await get_tree().create_timer(travel_duration).timeout
 		if _sequence_id.get(caster_peer_id, -1) != my_sequence:
+			spawner.cancel_call(caster_peer_id)
 			return
 
 		# Struck -- open the hook-set window and wait for either a
@@ -117,20 +142,20 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 			await get_tree().process_frame
 			elapsed += get_process_delta_time()
 			if _sequence_id.get(caster_peer_id, -1) != my_sequence:
+				spawner.cancel_call(caster_peer_id)
 				return
 
 		_hook_open[caster_peer_id] = false
 
 		if _hook_set.get(caster_peer_id, false):
-			if spawner:
-				spawner.despawn_shadow(caster_peer_id, false)
+			spawner.catch_shadow(shadow_id)
 			_pending.erase(caster_peer_id)
 			_fire_bite(endpoint, caster_peer_id, species)
 			return
 
-		# Missed -- spook off, brief pause, another shadow rolls in.
-		if spawner:
-			spawner.despawn_shadow(caster_peer_id, true)
+		# Missed -- shadow spooks back to wandering (still out there, free
+		# for anyone to call again), brief pause, then look for the next one.
+		spawner.release_shadow(shadow_id)
 		_notify_hook_missed.rpc(caster_peer_id)
 
 		await get_tree().create_timer(SPOOK_PAUSE_SECONDS).timeout
@@ -201,7 +226,7 @@ func _cancel_pending(caster_peer_id: int) -> void:
 	_notify_hook_missed.rpc(caster_peer_id)
 	var spawner: Node = get_tree().get_first_node_in_group("visual_fish_spawner")
 	if spawner:
-		spawner.despawn_shadow(caster_peer_id, false)
+		spawner.cancel_call(caster_peer_id)  # no-op if nothing was called for them yet
 
 
 ## Called by TangleManager (host-side) when a tangle-loser's line snaps --

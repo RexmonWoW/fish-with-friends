@@ -32,14 +32,14 @@ _Standing decisions worth remembering, not a changelog — see Session Log for w
 
 ## Next Up
 - **2-machine test in progress (passes 31-34) — movement CONFIRMED working.** Everything else still needs re-verification after four full rounds of real bugs surfacing as soon as things became testable, most recently: capsize left players unable to move at all (a velocity-clobbering ordering bug in Player's swim branch), line tangling's collision radius was 10x too tight to ever realistically trigger. Treat nothing here as done until a clean pass with no new reports.
-- **Bite Detection is a new networked feature (shadow spawn/despawn synced per-peer) — not yet tested on 2 machines.** Headless-tested solo only so far.
+- **Bite Detection was reworked into a standing ambient population (2026-08-30)** — shadows now wander continuously and get called by a nearby cast instead of spawning per-cast; a miss sends one back to wandering instead of despawning it. New networked shape, still not tested on 2 machines — headless-tested solo only so far.
 - **Reel Mechanic rework was reset (2026-08-30)** — the post-fdd3b46 rebuild missed the mark and got rolled back; rebuilding it is next, see the planning chat for the revised direction before starting.
 - **Balance note (2026-08-30)**: Big Fish Event still feels too easy even with the QTE label now visible. Hold off retuning again until it's been tested with the label fix in place first.
 - **Design ask, not built yet**: make the Big Fish Event feel more like a real (easier) mini reel — right now it's just hold-and-wait with an occasional QTE. Needs a planning/design pass before building.
 - **Explicitly deferred by request**: livewell fish should actually swim around, spawn, and despawn (currently static placement per slot) — do after the current bug list is clean.
 - Capsize's placeholder swim pose/bob animation removed by request (2026-08-30) — real swim animation is Art & Polish's for later.
 - "Line doesn't always stay connected during flight" — still open, root cause unconfirmed.
-- Balance placeholder numbers: quota formula constants, Big Fish Event tunables, QTE tunables, livewell swim/look-angle tunables.
+- Balance placeholder numbers: quota formula constants, Big Fish Event tunables, QTE tunables, livewell swim/look-angle tunables, ambient shadow population (count/spread/swim speed/call-radius growth rate).
 - Known accepted gaps: joining client's RunState totals lag until the next broadcast; BigFishEventManager has no disconnect handling.
 - Not built yet: real lobby content, rejected-cast feedback message, real multi-player livewell "negotiate when full" UX, real fish species/art content, rarity-tiered spawn weighting.
 - Future want, not scheduled: a bobber upgrade that reveals species before reeling (Per-Run Shop item).
@@ -57,6 +57,7 @@ _(needs a call from the planning chat)_
 - **Big Fish Event tunables**: join radius/duration/miss-penalties still placeholder; climb speed/QTE cadence retuned 2026-08-30 (was solvable by pure hold, no real challenge), still needs real playtesting to dial in further. Trigger *timing* resolved 2026-08-30 (once per day, end of final round).
 - **Big Fish Event credit**: a shared catch is credited to "The Crew" rather than one participant — confirm that's right, especially once a leaderboard exists.
 - **Fun idea, not scheduled**: a challenge mode combining every map's hazard at once, once all maps exist.
+- **Blind-cast bite pacing (GDD flagged this one itself)**: implemented as a soft default — a cast with nothing nearby isn't dead, the shadow-search radius grows the longer it waits (a few seconds worst case today). GDD explicitly flagged this as a default call, not confirmed — say the word if a hard "no shadow nearby = no bite" is preferred, or if the wait should feel longer/more suspenseful than today's few-second tuning.
 
 ## Session Log
 _(one line per session)_
@@ -102,3 +103,4 @@ _(one line per session)_
 - 2026-08-30 (34th pass) — Root-caused "capsize -- can't move" for real: Player's swim branch reset linear_velocity.y AFTER applying the movement impulse, silently discarding it every frame via a read-modify-write. Fixed the ordering, plus gave water a low-friction material and a toss clearance margin (real contributing factors, not the main cause). Fixed line tangling's collision radius (0.05 -- absurdly tight) and a timing race it exposed. Removed the placeholder swim pose animation by request.
 - 2026-08-30 — Reset repo to fdd3b46 — reel/big fish rework after that point missed the mark, rebuilding from here. Prior HEAD kept at branch `pre-reset-backup` for reference.
 - 2026-08-30 — Cherry-picked Bite Detection and bobber drift back onto main from `pre-reset-backup` — both tested clean and weren't part of what went wrong with the reel rework.
+- 2026-08-30 (planning update) — Reworked Bite Detection into a standing ambient shadow population (new `ShadowWander` helper, rewritten `VisualFishSpawner`) instead of spawn-per-cast; a nearby cast calls one in, a miss releases it back to wandering, only a catch despawns one for good, and a growing search radius keeps a blind cast from ever being dead.

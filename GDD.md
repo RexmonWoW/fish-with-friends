@@ -63,6 +63,17 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 
 ---
 
+## Bite Detection
+- Fish swim visibly in the water as wandering shadows (size hints at species/rarity), all the time — not spawned by casting.
+- Cast near one to call it: it breaks off from wandering and swims to your bobber instead of an invisible timer deciding when you get a bite.
+- Casting where nothing's currently swimming isn't a dead cast — a wandering shadow that drifts into range later still gets called, just later. Aiming well gets a faster, more certain bite; aiming blind means waiting on whatever wanders by. *(Default call, not yet confirmed with Nick — flag if a hard "no shadow nearby = no bite" is preferred instead.)*
+- Once a shadow is swimming for your bobber, it's yours — another player's cast can't also call it.
+- Arrival at the bobber opens a short hook-set window — press to set the hook. Miss it and the fish spooks back off to wander again.
+- Hook-set success drops straight into the Reel Mechanic.
+- Fully synced — everyone sees the same wandering fish and the same fish converging on a bobber, not a private roll on one screen.
+
+---
+
 ## Reel Mechanic
 - Stardew Valley style minigame
 - Cursor keeps fish icon inside drifting zone
