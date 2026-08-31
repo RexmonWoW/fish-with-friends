@@ -32,7 +32,20 @@ const PROGRESS_SMOOTH_RATE: float = 3.0
 const KICK_DURATION: float = 0.4
 const KICK_STRENGTH: float = 0.4
 
+## Review: broadcasting every physics tick (~60Hz) was needlessly chatty --
+## the Bobber's own lerp smoothing already hides the gaps between updates,
+## so there's no visual cost to sending them less often. Easing itself
+## still runs every tick (below) for a smooth internal display_progress;
+## only how often the RESULT goes out over the wire is throttled.
+const BROADCAST_INTERVAL: float = 1.0 / 12.0  ## ~12Hz
+
 var _fights: Dictionary = {}  # peer_id (int) -> {anchor, progress, display_progress, kick_dir, kick_timer}
+var _broadcast_timer: float = 0.0
+
+## True while _fights had at least one entry as of the last tick -- lets
+## the empty-transition below fire exactly once (see _process's doc
+## comment on why that final broadcast matters).
+var _was_active: bool = false
 
 
 func _ready() -> void:
@@ -61,10 +74,22 @@ func cancel_fight(peer_id: int) -> void:
 func _process(delta: float) -> void:
 	if not multiplayer.is_server():
 		return
-	if _fights.is_empty():
-		return
 
-	var payload: Dictionary = {}
+	if _fights.is_empty():
+		# Review: once the LAST fight ended, this used to just go quiet --
+		# no more broadcasts ever went out, so a Bobber that missed the
+		# very last update (or has nothing left to hear from) stayed frozen
+		# at its last fight position forever instead of falling back to
+		# drift. One final broadcast (empty payload's fine, the receiving
+		# end only cares that ITS peer_id is no longer in it) on the exact
+		# transition into "nothing active" makes sure that guard actually
+		# fires here too.
+		if _was_active:
+			_was_active = false
+			_notify_fight_state.rpc({})
+		return
+	_was_active = true
+
 	for peer_id in _fights:
 		var f: Dictionary = _fights[peer_id]
 		f["display_progress"] = lerpf(
@@ -72,7 +97,15 @@ func _process(delta: float) -> void:
 		)
 		if f["kick_timer"] > 0.0:
 			f["kick_timer"] = maxf(f["kick_timer"] - delta, 0.0)
-		var pos: Variant = _compute_bobber_world_position(peer_id, f)
+
+	_broadcast_timer += delta
+	if _broadcast_timer < BROADCAST_INTERVAL:
+		return
+	_broadcast_timer = 0.0
+
+	var payload: Dictionary = {}
+	for peer_id in _fights:
+		var pos: Variant = _compute_bobber_world_position(peer_id, _fights[peer_id])
 		if pos != null:
 			payload[peer_id] = pos
 	if not payload.is_empty():
