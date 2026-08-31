@@ -13,11 +13,15 @@ extends Node3D
 ## placeholder mesh in this codebase (bobber, rod, livewell fish) -- real
 ## shadow/fish art is Art & Polish's.
 
-## Same normalization range ReelMinigame/BigFishEventManager already use
-## for value-driven scaling, so future higher-tier species scale sensibly
-## with no rebalancing here.
-const VALUE_FOR_MIN_SIZE: float = 5.0
-const VALUE_FOR_MAX_SIZE: float = 150.0
+## Tied to the fish's actual size stat (inches, same field FishData.roll_size
+## rolls and Livewell/EquipmentSlot already scale their own fish visuals by)
+## rather than money value -- a shadow's size is a hint at what's actually
+## swimming there, not what it's worth. Generous fixed range rather than a
+## per-species one so a new species (min/max_size authored in its own .tres,
+## zero code changes per GDD's Fish Data section) automatically scales
+## sensibly without touching this file.
+const GLOBAL_MIN_SIZE_INCHES: float = 1.0
+const GLOBAL_MAX_SIZE_INCHES: float = 40.0
 const MIN_LENGTH: float = 0.5
 const MAX_LENGTH: float = 1.6
 
@@ -25,6 +29,10 @@ const FLEE_DISTANCE: float = 2.0
 const FLEE_DURATION: float = 0.4
 
 @export var species: FishData
+## Rolled once by VisualFishSpawner at spawn time (species.roll_size(),
+## the same call FishFactory uses for a real catch) and broadcast, not
+## re-rolled locally -- every peer needs to render the same size.
+@export var size: float = 0.0
 
 var _mesh: MeshInstance3D = null
 var _tween: Tween = null
@@ -41,7 +49,7 @@ func _ready() -> void:
 	add_to_group("visual_fish")  ## lookup for tests
 	_mesh = MeshInstance3D.new()
 	var capsule := CapsuleMesh.new()
-	var length := _length_for_species()
+	var length := _length_for_size()
 	capsule.height = length
 	capsule.radius = length * 0.3
 	_mesh.mesh = capsule
@@ -55,14 +63,12 @@ func _ready() -> void:
 	add_child(_mesh)
 
 
-func _length_for_species() -> float:
-	if species == null:
-		return MIN_LENGTH
-	var value_t := clampf(
-		(float(species.base_value) - VALUE_FOR_MIN_SIZE) / (VALUE_FOR_MAX_SIZE - VALUE_FOR_MIN_SIZE),
+func _length_for_size() -> float:
+	var size_t := clampf(
+		(size - GLOBAL_MIN_SIZE_INCHES) / (GLOBAL_MAX_SIZE_INCHES - GLOBAL_MIN_SIZE_INCHES),
 		0.0, 1.0
 	)
-	return lerpf(MIN_LENGTH, MAX_LENGTH, value_t)
+	return lerpf(MIN_LENGTH, MAX_LENGTH, size_t)
 
 
 ## Enters (or resumes) ambient wandering -- see ShadowWander's doc comment

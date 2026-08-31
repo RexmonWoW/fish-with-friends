@@ -86,11 +86,15 @@ func _spawn_new_ambient() -> void:
 	_next_id += 1
 	var seed := randf() * TAU
 	var spawn_t := Time.get_ticks_msec() / 1000.0
+	# Same call FishFactory uses for a real catch -- the shadow's size is a
+	# genuine roll off the species' own min/max_size, not a fresh made-up
+	# number, so its visual scale actually hints at what's swimming there.
+	var size := species.roll_size()
 	_shadows[id] = {
-		"species": species, "home": home, "seed": seed, "spawn_t": spawn_t,
+		"species": species, "home": home, "seed": seed, "spawn_t": spawn_t, "size": size,
 		"target_pos": Vector3.ZERO, "called_by": -1, "state": ShadowState.WANDERING,
 	}
-	_notify_spawn_ambient.rpc(id, species, home, seed, spawn_t)
+	_notify_spawn_ambient.rpc(id, species, home, seed, spawn_t, size)
 
 
 func _roll_home_point() -> Variant:
@@ -108,9 +112,10 @@ func _roll_home_point() -> Variant:
 
 
 @rpc("authority", "call_local", "reliable")
-func _notify_spawn_ambient(id: int, species: FishData, home: Vector3, seed: float, spawn_t: float) -> void:
+func _notify_spawn_ambient(id: int, species: FishData, home: Vector3, seed: float, spawn_t: float, size: float) -> void:
 	var fish := VISUAL_FISH_SCENE.instantiate() as VisualFish
 	fish.species = species
+	fish.size = size
 	get_tree().root.add_child(fish)
 	fish.start_wandering(home, seed, spawn_t)
 	_local_fish[id] = fish
