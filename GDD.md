@@ -65,6 +65,8 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 
 ## Bite Detection
 - Fish swim visibly in the water as wandering shadows (size hints at species/rarity), all the time — not spawned by casting.
+- Shadow look: Pokémon / Animal Crossing / Fishing Resort style — a flat dark silhouette blob at/under the water surface, not a 3D fish body. (Placeholder stays a simple flat dark shape Code can build; real shadow art is Nick's later.)
+- Shadows belong to the fishing map — they despawn with it and never appear in the lobby or between rounds.
 - Cast near one to call it: it breaks off from wandering and swims to your bobber instead of an invisible timer deciding when you get a bite.
 - Casting where nothing's currently swimming isn't a dead cast — a wandering shadow that drifts into range later still gets called, just later. Aiming well gets a faster, more certain bite; aiming blind means waiting on whatever wanders by. *(Default call, not yet confirmed with Nick — flag if a hard "no shadow nearby = no bite" is preferred instead.)*
 - Once a shadow is swimming for your bobber, it's yours — another player's cast can't also call it.
@@ -126,6 +128,7 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 ---
 
 ## Capsize Minigame
+- Entry: players get physically tossed into the water (real physics impulse on their RigidBody, not a teleport/reposition) — funny by design. Everything downstream (swim state, corner claiming) unchanged.
 - Everyone swims to a corner of the boat and interacts
 - Number of corners scales with player count
   - 1 player = 1 corner
