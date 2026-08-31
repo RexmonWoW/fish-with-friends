@@ -32,6 +32,8 @@ _Standing decisions worth remembering, not a changelog — see Session Log for w
 
 ## Next Up
 - **2-machine test in progress (passes 31-34) — movement CONFIRMED working.** Everything else still needs re-verification after four full rounds of real bugs surfacing as soon as things became testable, most recently: capsize left players unable to move at all (a velocity-clobbering ordering bug in Player's swim branch), line tangling's collision radius was 10x too tight to ever realistically trigger. Treat nothing here as done until a clean pass with no new reports.
+- **Bite Detection is a new networked feature (shadow spawn/despawn synced per-peer) — not yet tested on 2 machines.** Headless-tested solo only so far.
+- **Reel Mechanic rework was reset (2026-08-30)** — the post-fdd3b46 rebuild missed the mark and got rolled back; rebuilding it is next, see the planning chat for the revised direction before starting.
 - **Balance note (2026-08-30)**: Big Fish Event still feels too easy even with the QTE label now visible. Hold off retuning again until it's been tested with the label fix in place first.
 - **Design ask, not built yet**: make the Big Fish Event feel more like a real (easier) mini reel — right now it's just hold-and-wait with an occasional QTE. Needs a planning/design pass before building.
 - **Explicitly deferred by request**: livewell fish should actually swim around, spawn, and despawn (currently static placement per slot) — do after the current bug list is clean.
@@ -99,3 +101,4 @@ _(one line per session)_
 - 2026-08-30 (33rd pass) — Cast-cancel wasn't discoverable (no hint) and capsize's water toss only tried one direction (could strand a player above water) -- both fixed. Added a collective progress bar + countdown to the Big Fish Event, by request.
 - 2026-08-30 (34th pass) — Root-caused "capsize -- can't move" for real: Player's swim branch reset linear_velocity.y AFTER applying the movement impulse, silently discarding it every frame via a read-modify-write. Fixed the ordering, plus gave water a low-friction material and a toss clearance margin (real contributing factors, not the main cause). Fixed line tangling's collision radius (0.05 -- absurdly tight) and a timing race it exposed. Removed the placeholder swim pose animation by request.
 - 2026-08-30 — Reset repo to fdd3b46 — reel/big fish rework after that point missed the mark, rebuilding from here. Prior HEAD kept at branch `pre-reset-backup` for reference.
+- 2026-08-30 — Cherry-picked Bite Detection and bobber drift back onto main from `pre-reset-backup` — both tested clean and weren't part of what went wrong with the reel rework.
