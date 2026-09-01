@@ -7,6 +7,14 @@ enum CastState { IDLE, CHARGING, ANIMATING, WAITING_BITE, REELING, BIG_FISH_EVEN
 @export var min_cast_distance: float = 3.0
 @export var charge_time_to_full: float = 1.5  ## seconds of hold to reach max power
 
+## GDD Casting: landing preview, shown only to the charging player, purely
+## client-side (no networking -- every client already has the same static
+## map geometry to raycast against locally).
+const LANDING_PREVIEW_RADIUS: float = 0.5
+const LANDING_PREVIEW_Y_OFFSET: float = 0.02  ## just above the surface, avoids z-fighting
+const LANDING_PREVIEW_VALID_COLOR: Color = Color(0.2, 0.9, 1.0, 0.85)
+const LANDING_PREVIEW_INVALID_COLOR: Color = Color(0.95, 0.15, 0.15, 0.85)
+
 var state: CastState = CastState.IDLE
 var charge_start_time: float = 0.0
 var current_power: float = 0.0      ## 0.0–1.0, NOT replicated
@@ -29,6 +37,12 @@ var _near_livewell: bool = false
 ## set the hook). Set/cleared by BiteEventManager's broadcasts, gated to
 ## this rod's own owner since every peer mirrors every rod.
 var _hook_window_open: bool = false
+
+## Lazily built the first time this rod's own local owner starts charging --
+## every peer mirrors every rod, but only the owner's own client ever builds
+## or shows one (see _process's owner gate below).
+var _landing_preview: MeshInstance3D = null
+var _landing_preview_material: StandardMaterial3D = null
 
 
 func _ready() -> void:
@@ -224,6 +238,9 @@ func _process(_delta: float) -> void:
 		var elapsed := (Time.get_ticks_msec() / 1000.0) - charge_start_time
 		current_power = clampf(elapsed / charge_time_to_full, 0.0, 1.0)
 		EventBus.cast_charge_updated.emit(current_power, owner_peer_id)
+		_update_landing_preview()
+	elif _landing_preview != null and _landing_preview.visible:
+		_hide_landing_preview()
 
 	if Input.is_action_just_pressed("cast"):
 		# GDD Bite Detection: a shadow struck and the hook-set window is
@@ -271,6 +288,27 @@ func _request_cast(cam_origin: Vector3, cam_forward: Vector3, power: float) -> v
 ## the machine doing the refreshing -- see PROGRESS.md.
 
 func _validate_and_land_cast(cam_origin: Vector3, cam_forward: Vector3, power: float) -> void:
+	var aim_point := _compute_aim_point(cam_origin, cam_forward, power)
+
+	# Snap to the actual water surface height, not the aim point's height --
+	# otherwise the lure/bobber ends up floating at eye level instead of
+	# sitting on the water.
+	var water_point = WaterValidator.find_water_point(aim_point, NetworkManager.get_current_map())
+	if water_point == null:
+		_cast_failed.rpc(&"invalid_water")
+		return
+
+	_cast_landed.rpc(water_point, 0.5)  # 0.5 s lure flight — placeholder
+
+
+## Aim direction + power -> the flat aim point (camera height, not yet
+## snapped to any surface). This is the one piece of math that decides
+## where a cast is even aimed -- shared by the host's real validation above
+## and the client-side landing preview below (_update_landing_preview) so
+## the preview can never show a different point than a real cast would use.
+## Safe to call on any peer: pure math, no map/physics access, no authority
+## implications.
+func _compute_aim_point(cam_origin: Vector3, cam_forward: Vector3, power: float) -> Vector3:
 	# Cast distance is horizontal reach, not full 3D look-direction distance --
 	# otherwise aiming down at the water (as any player naturally would while
 	# fishing) sends the endpoint's Y far below the surface and the water
@@ -282,17 +320,79 @@ func _validate_and_land_cast(cam_origin: Vector3, cam_forward: Vector3, power: f
 	var direction := horizontal.normalized()
 
 	var distance := maxf(power * max_cast_distance, min_cast_distance)
-	var aim_point := Vector3(cam_origin.x, cam_origin.y, cam_origin.z) + direction * distance
+	return Vector3(cam_origin.x, cam_origin.y, cam_origin.z) + direction * distance
 
-	# Snap to the actual water surface height, not the aim point's height --
-	# otherwise the lure/bobber ends up floating at eye level instead of
-	# sitting on the water.
-	var water_point = WaterValidator.find_water_point(aim_point, NetworkManager.get_current_map())
-	if water_point == null:
-		_cast_failed.rpc(&"invalid_water")
+
+# ── Landing preview (client-side only, GDD Casting) ────────────────────────────
+
+func _ensure_landing_preview() -> void:
+	if _landing_preview != null:
 		return
+	_landing_preview = MeshInstance3D.new()
+	_landing_preview.top_level = true  # world-positioned, ignores this Rod's own transform
+	_landing_preview.visible = false
+	var disc := CylinderMesh.new()
+	disc.top_radius = LANDING_PREVIEW_RADIUS
+	disc.bottom_radius = LANDING_PREVIEW_RADIUS
+	disc.height = 0.02
+	_landing_preview.mesh = disc
+	_landing_preview_material = StandardMaterial3D.new()
+	_landing_preview_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_landing_preview_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_landing_preview.set_surface_override_material(0, _landing_preview_material)
+	add_child(_landing_preview)
 
-	_cast_landed.rpc(water_point, 0.5)  # 0.5 s lure flight — placeholder
+
+## Runs every frame while THIS rod's own local owner is charging (see the
+## owner gate at the top of _process). Reuses _compute_aim_point + the same
+## WaterValidator every real cast uses, so it can never disagree with where
+## release_cast() would actually land.
+func _update_landing_preview() -> void:
+	if player_camera == null:
+		return
+	_ensure_landing_preview()
+
+	var cam_origin := player_camera.global_transform.origin
+	var cam_forward := -player_camera.global_transform.basis.z
+	var aim_point := _compute_aim_point(cam_origin, cam_forward, current_power)
+	var map := NetworkManager.get_current_map()
+	var water_point: Variant = WaterValidator.find_water_point(aim_point, map)
+
+	if water_point != null:
+		_landing_preview.global_position = (water_point as Vector3) + Vector3(0.0, LANDING_PREVIEW_Y_OFFSET, 0.0)
+		_landing_preview_material.albedo_color = LANDING_PREVIEW_VALID_COLOR
+	else:
+		# Not water -- still show the blocked marker somewhere real instead
+		# of floating at eye height. Visual-only fallback ray (any solid),
+		# never used to decide the actual cast outcome -- that's step 2/3.
+		var fallback: Variant = _find_any_surface_below(aim_point, map)
+		var shown_pos: Vector3 = (fallback as Vector3) if fallback != null else aim_point
+		_landing_preview.global_position = shown_pos + Vector3(0.0, LANDING_PREVIEW_Y_OFFSET, 0.0)
+		_landing_preview_material.albedo_color = LANDING_PREVIEW_INVALID_COLOR
+
+	_landing_preview.visible = true
+
+
+func _hide_landing_preview() -> void:
+	_landing_preview.visible = false
+
+
+## Visual-only placement helper for the invalid-preview case -- straight
+## down for ANY solid (deck, shore, whatever), not just water. Never feeds
+## into a real cast's outcome.
+func _find_any_surface_below(pos: Vector3, map: Node3D) -> Variant:
+	if map == null:
+		return null
+	var space_state := map.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(
+		pos + Vector3(0.0, 10.0, 0.0), pos + Vector3(0.0, -10.0, 0.0)
+	)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	var result := space_state.intersect_ray(query)
+	if result.is_empty():
+		return null
+	return result.position as Vector3
 
 
 # ── RPC 2: Host → All clients, cast confirmed ─────────────────────────────────
