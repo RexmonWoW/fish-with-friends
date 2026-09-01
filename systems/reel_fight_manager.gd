@@ -39,21 +39,18 @@ const KICK_STRENGTH: float = 0.4
 ## only how often the RESULT goes out over the wire is throttled.
 const BROADCAST_INTERVAL: float = 1.0 / 12.0  ## ~12Hz
 
-## Playtest: "yanks in the instant a fight starts" -- ReelMinigame's own
-## _progress starts at 0.5, not 0.0, but this used to map progress 0..1
-## straight onto anchor..angler, so the bobber jumped to roughly halfway
-## reeled-in the moment the fight began. Matches ReelMinigame._progress's
-## own starting value -- display is remapped below so THIS corresponds to
-## the landing spot (t = 0), not wherever the raw 0..1 progress number
-## happens to sit.
+## GDD, corrected: the bar maps to the world SYMMETRICALLY around its 50%
+## start (matches ReelMinigame._progress's own starting value) -- 0.5 =
+## exactly the landing spot, 1.0 = reeled in (real distance to the
+## angler), 0.0 = stretched out to STRETCH_DISTANCE past the landing spot,
+## away from the angler ("the fish takes line and stretches it until it
+## snaps"). The two halves use genuinely different math below, not one
+## continuous linear formula -- the winning half is real-distance-based,
+## the losing half is a small fixed stretch, deliberately NOT another full
+## anchor-to-angler distance (a long cast stretching a second cast-length
+## out would send it flying off the map).
 const START_PROGRESS: float = 0.5
-
-## "Let the fish take line" -- when progress drops below START_PROGRESS
-## (the fish pulling back), the bobber drags back out past the anchor
-## instead of clamping dead at it. Capped to a modest overshoot rather
-## than a full linear projection (progress hitting 0.0 would otherwise
-## fling it a full anchor-to-angler distance out).
-const MIN_DISPLAY_T: float = -0.15
+const STRETCH_DISTANCE: float = 3.0
 
 var _fights: Dictionary = {}  # peer_id (int) -> {anchor, progress, display_progress, kick_dir, kick_timer}
 var _broadcast_timer: float = 0.0
@@ -142,18 +139,26 @@ func _compute_bobber_world_position(peer_id: int, f: Dictionary) -> Variant:
 	var near_point: Vector3 = player.global_position
 
 	var anchor: Vector3 = f["anchor"]
-	# Remapped so START_PROGRESS (where every fight begins) lands exactly on
-	# the anchor (t=0) and 1.0 lands on the angler (t=1) -- see
-	# START_PROGRESS's own doc comment. Progress dropping below where it
-	# started extrapolates PAST the anchor (t < 0, "the fish takes line")
-	# instead of clamping dead at it.
-	var t := clampf((f["display_progress"] as float - START_PROGRESS) / (1.0 - START_PROGRESS), MIN_DISPLAY_T, 1.0)
 	var anchor_xz := Vector2(anchor.x, anchor.z)
 	var near_xz := Vector2(near_point.x, near_point.z)
-	# XZ closes toward the angler as progress builds; Y stays pinned to the
-	# anchor's original (water-surface) height -- the bobber reels in ALONG
-	# the water, it never lifts off it.
-	var xz := anchor_xz.lerp(near_xz, t)
+
+	# See START_PROGRESS's doc comment -- two different halves, not one
+	# continuous formula. Y stays pinned to the anchor's original (water-
+	# surface) height throughout -- the bobber reels in ALONG the water, it
+	# never lifts off it.
+	var progress: float = f["display_progress"]
+	var xz: Vector2
+	if progress >= START_PROGRESS:
+		var w := (progress - START_PROGRESS) / (1.0 - START_PROGRESS)  # 0 at the anchor, 1 at the angler
+		xz = anchor_xz.lerp(near_xz, w)
+	else:
+		var s := (START_PROGRESS - progress) / START_PROGRESS  # 0 at the anchor, 1 at full stretch
+		var away := anchor_xz - near_xz
+		if away.length_squared() < 0.0001:
+			away = Vector2.DOWN
+		away = away.normalized()
+		xz = anchor_xz + away * (STRETCH_DISTANCE * s)
+
 	xz += _compute_kick(f, anchor_xz, near_xz)
 	return Vector3(xz.x, anchor.y, xz.y)
 
