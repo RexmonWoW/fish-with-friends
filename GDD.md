@@ -87,7 +87,7 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 - Each player gets their own cursor
 - Runs client side, outcome synced to host
 - The fight shows physically in the world for everyone: the real bobber reels in along the water toward the angler as progress builds, with sideways kicks on QTEs (host broadcasts positions; the private bar stays the only control).
-- The bobber starts the fight exactly where it landed — the bar's starting progress maps to the landing spot, not halfway in. Losing progress lets the fish take line: bobber gets dragged back out toward (a bit past) where it landed.
+- The bar maps to the world symmetrically: the fight starts with the bobber exactly where it landed (bar at 50%). The winning half of the bar = closing the real distance from landing spot to angler; the losing half = the fish taking line, stretching the bobber out *past* the landing spot — so an emptying bar visibly reads as the line stretching until it snaps. Max stretch distance is a tunable.
 - Farther casts take longer to reel in — fill rate scales down with distance to the bobber. Numbers are placeholder, tune by feel.
 
 ---
