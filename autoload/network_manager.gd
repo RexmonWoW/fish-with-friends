@@ -77,16 +77,57 @@ func _allow_resource_rpcs() -> void:
 		scene_multiplayer.allow_object_decoding = true
 
 
+## GDD: "everyone disconnects, click to return to main menu." GameRoot and
+## everything under NetworkRoot are a true singleton for the app's whole
+## lifetime -- game_root.tscn is the project's own main scene, loaded once
+## by Godot itself, never re-instantiated for a fresh game -- so this has
+## to be the one place that actually clears everything a run leaves
+## behind: the loaded map/lobby scene, every spawned Player node, and
+## every autoload's per-run bookkeeping. New-game code (host_lobby/
+## join_lobby) assumes this already ran and doesn't defensively re-clear
+## anything itself.
+##
+## Bug this fixes: a second "host a new game" in the same app session
+## showed the OLD run's boat/livewell (an old map still sitting in World --
+## _load_map only ever ADDS a scene, never replaces one) plus a duplicate
+## player (the old Player node was still a child of Players; a same-named
+## new one collided and got silently renamed by Godot instead of erroring).
 func disconnect_from_lobby() -> void:
 	multiplayer.multiplayer_peer = null
 	SteamManager.leave_lobby()
+
+	_clear_world()
+	_clear_players()
+
 	spawned_players.clear()
+	_current_scene_id = &""
+	_round_started = false
+
+	RunState.reset_for_new_run()
+
+
+## Frees every currently-spawned Player node. MultiplayerSpawner only ever
+## ADDS to NetworkRoot/Players -- nothing in the normal round-to-round flow
+## (lobby <-> lake) ever removes them, since players correctly persist
+## across THOSE transitions. Only a full run teardown should ever clear
+## this, same reasoning _clear_world() already documents for World.
+func _clear_players() -> void:
+	var players := _get_players_container()
+	if players == null:
+		return
+	for child in players.get_children():
+		players.remove_child(child)
+		child.queue_free()
 
 
 # ── Map helpers ────────────────────────────────────────────────────────────────
 
 func _get_world() -> Node:
 	return get_tree().root.get_node("GameRoot/NetworkRoot/World")
+
+
+func _get_players_container() -> Node:
+	return get_tree().root.get_node_or_null("GameRoot/NetworkRoot/Players")
 
 
 ## Public so Rod/EquipmentSlot can resolve the active map for water validation.
