@@ -14,7 +14,15 @@ extends Node
 ## session were built and proven before the thing that triggers them
 ## existed yet (e.g. line tangling before round/day/quota).
 
-const INTERACT_RADIUS: float = 1.2  ## how close to a corner counts as "there"
+## Playtest: "only one side works" -- corner markers tilt with the boat
+## visual, so a full-3D distance check put the raised side's corners out
+## of a water-level swimmer's vertical reach while the dipped side stayed
+## fine. Measured in XZ only now, with a separate, generous vertical
+## tolerance -- a swimmer near a corner horizontally should be able to
+## claim it regardless of how far the boat's current tilt has moved that
+## corner up or down.
+const INTERACT_RADIUS: float = 1.2  ## XZ distance to a corner counts as "there"
+const INTERACT_VERTICAL_TOLERANCE: float = 2.5
 
 ## GDD Capsize Minigame: "physically tumble into the water. Funny is the
 ## goal." Real impulse instead of a teleport -- mass 70 (Player.tscn), so
@@ -32,6 +40,7 @@ var _active: bool = false
 var _required_corners: int = 0
 var _claimed_by: Dictionary = {}  # corner_index (int) -> peer_id (int)
 var _corner_markers: Array = []   # Marker3D, populated via setup()
+var _hull: PhysicsBody3D = null   # populated via setup(), used to mask collision during a toss
 
 
 func _ready() -> void:
@@ -45,8 +54,9 @@ func _ready() -> void:
 ## available locally on every peer, not just the host. Local peers use this
 ## read-only for get_nearest_corner_index(); only the host ever mutates
 ## _claimed_by/_active.
-func setup(corner_markers: Array) -> void:
+func setup(corner_markers: Array, hull: PhysicsBody3D = null) -> void:
 	_corner_markers = corner_markers
+	_hull = hull
 
 
 func is_active() -> bool:
@@ -61,11 +71,18 @@ func get_nearest_corner_index(from_position: Vector3) -> int:
 	var best_dist := INTERACT_RADIUS
 	for i in range(_corner_markers.size()):
 		var corner: Marker3D = _corner_markers[i]
-		var dist := from_position.distance_to(corner.global_position)
+		var corner_pos := corner.global_position
+		if absf(from_position.y - corner_pos.y) > INTERACT_VERTICAL_TOLERANCE:
+			continue
+		var dist := _xz_distance(from_position, corner_pos)
 		if dist < best_dist:
 			best_dist = dist
 			best_index = i
 	return best_index
+
+
+static func _xz_distance(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
 
 
 func start_capsize() -> void:
@@ -109,6 +126,13 @@ func _toss_into_water(player: Player) -> void:
 		base_away = Vector3.FORWARD
 	base_away = base_away.normalized()
 
+	# The hull can otherwise block the launch outright (or eat most of its
+	# speed shoving through it) if the toss direction clips it -- masked for
+	# the same window the ballistic phase gets, restored once swim mode
+	# takes over.
+	if _hull:
+		player.add_collision_exception_with(_hull)
+
 	var impulse := base_away * TOSS_HORIZONTAL_IMPULSE + Vector3.UP * TOSS_VERTICAL_IMPULSE
 	player.apply_capsize_toss(impulse)
 
@@ -117,6 +141,8 @@ func _toss_into_water(player: Player) -> void:
 		if not is_instance_valid(player):
 			return
 		player.enter_swim_physics()
+		if _hull:
+			player.remove_collision_exception_with(_hull)
 		_ensure_player_in_water(player)
 	)
 
@@ -216,7 +242,10 @@ func _apply_claim(peer_id: int, corner_index: int) -> void:
 	if player == null:
 		return
 	var corner: Marker3D = _corner_markers[corner_index]
-	if player.global_position.distance_to(corner.global_position) > INTERACT_RADIUS:
+	var corner_pos := corner.global_position
+	if absf(player.global_position.y - corner_pos.y) > INTERACT_VERTICAL_TOLERANCE:
+		return  # client-reported position, not actually close enough
+	if _xz_distance(player.global_position, corner_pos) > INTERACT_RADIUS:
 		return  # client-reported position, not actually close enough
 
 	_claimed_by[corner_index] = peer_id

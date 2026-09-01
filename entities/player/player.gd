@@ -17,6 +17,16 @@ var peer_id: int = 0
 ## ever set for the LOCAL player -- see enter_swim_physics()'s comment.
 var is_swimming: bool = false
 
+## True from apply_capsize_toss() until enter_swim_physics() takes over --
+## the ballistic phase of a capsize toss. While set, _physics_process skips
+## movement input, braking, the speed clamp, and jump entirely: normal
+## movement handling (particularly _apply_braking, which decelerates at
+## brake_deceleration whenever no movement key is held) was eating the
+## toss's own impulse almost instantly, since is_swimming doesn't flip true
+## until the settle window ends -- "the toss is real but the brake eats
+## it." Only ever set for the LOCAL player, same as is_swimming.
+var _being_tossed: bool = false
+
 # Node references — assigned in _ready, used by EquipmentSlot and Minigame Logic.
 @onready var body_pivot: Node3D        = $BodyPivot
 @onready var camera_rig: Node3D       = $CameraRig
@@ -138,6 +148,14 @@ func _physics_process(delta: float) -> void:
 		_soft_follow_body_yaw(delta)
 		return
 
+	if _being_tossed:
+		# Ballistic phase of a capsize toss -- let the impulse and real
+		# gravity carry it uninterrupted. No movement input, no braking (see
+		# _being_tossed's own doc comment for why that matters), no speed
+		# clamp, no jump.
+		_soft_follow_body_yaw(delta)
+		return
+
 	# Planted while a cast is out -- no walking/jumping around with a taut
 	# line. Camera look and the rod's own inputs (charge/reel) still work.
 	var rod := equipment_slot.equipped_item as Rod
@@ -178,6 +196,7 @@ func _try_claim_nearest_corner() -> void:
 ## (_apply_swim_visual below), since every peer needs to see every player
 ## swimming, not just their own.
 func enter_swim_physics() -> void:
+	_being_tossed = false  # ballistic phase over, swim mode takes it from here
 	is_swimming = true
 	gravity_scale = 0.0
 	linear_velocity = Vector3.ZERO
@@ -188,6 +207,7 @@ func enter_swim_physics() -> void:
 ## so this still has normal gravity/movement to actually arc through
 ## instead of swim mode's gravity_scale = 0.0 killing it dead on arrival.
 func apply_capsize_toss(impulse: Vector3) -> void:
+	_being_tossed = true
 	apply_central_impulse(impulse)
 
 

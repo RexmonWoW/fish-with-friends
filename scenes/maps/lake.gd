@@ -10,7 +10,7 @@ func _ready() -> void:
 	$PlayableArea/BiteEventManager.current_map_id = map_id
 
 	var corners: Array = $PlayableArea/Boat/CapsizeCorners.get_children()
-	$PlayableArea/CapsizeManager.setup(corners)
+	$PlayableArea/CapsizeManager.setup(corners, $PlayableArea/Boat/Hull)
 
 	$PlayableArea/BigFishEventManager.setup(livewell.global_position, corners)
 
