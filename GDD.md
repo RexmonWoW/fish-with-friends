@@ -86,6 +86,9 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 - Perfect catch (nail all QTEs) = bonus livewell value
 - Each player gets their own cursor
 - Runs client side, outcome synced to host
+- The fight shows physically in the world for everyone: the real bobber reels in along the water toward the angler as progress builds, with sideways kicks on QTEs (host broadcasts positions; the private bar stays the only control).
+- The bobber starts the fight exactly where it landed — the bar's starting progress maps to the landing spot, not halfway in. Losing progress lets the fish take line: bobber gets dragged back out toward (a bit past) where it landed.
+- Farther casts take longer to reel in — fill rate scales down with distance to the bobber. Numbers are placeholder, tune by feel.
 
 ---
 
