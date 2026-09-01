@@ -40,6 +40,15 @@ const FILL_RATE: float = 0.35          ## progress/sec while overlapping
 const DRAIN_RATE: float = 0.22         ## progress/sec while not overlapping
 const DRAIN_RATE_HARD: float = 0.34
 
+## GDD: "cast distance should matter" -- a far cast takes noticeably longer
+## to reel in. Scales FILL_RATE down by how far the landing spot was from
+## the angler at fight start, full speed at close range down to this
+## fraction at max cast distance (Rod.max_cast_distance). Placeholder,
+## tune-by-feel like every other constant here -- stacks independently with
+## the existing fish-value difficulty scaling below (that one never touched
+## FILL_RATE at all).
+const FILL_RATE_MULTIPLIER_AT_MAX_DISTANCE: float = 0.65
+
 const QTE_MIN_INTERVAL: float = 2.2
 const QTE_MIN_INTERVAL_HARD: float = 1.2
 const QTE_MAX_INTERVAL: float = 4.5
@@ -78,6 +87,7 @@ var _drain_rate: float = DRAIN_RATE
 var _qte_min_interval: float = QTE_MIN_INTERVAL
 var _qte_max_interval: float = QTE_MAX_INTERVAL
 var _qte_window: float = QTE_WINDOW
+var _fill_rate: float = FILL_RATE  ## per-reel, scaled by cast distance -- see _try_start_reel
 
 ## While the local player is tangled (see EventBus.tangle_started/resolved),
 ## a bite that fires mid-tangle shouldn't pop the reel up on top of the
@@ -235,6 +245,7 @@ func _try_start_reel(fish_data: FishData, caster_peer_id: int) -> void:
 	_qte_min_interval = lerpf(QTE_MIN_INTERVAL, QTE_MIN_INTERVAL_HARD, t)
 	_qte_max_interval = lerpf(QTE_MAX_INTERVAL, QTE_MAX_INTERVAL_HARD, t)
 	_qte_window = lerpf(QTE_WINDOW, QTE_WINDOW_HARD, t)
+	_fill_rate = FILL_RATE * lerpf(1.0, FILL_RATE_MULTIPLIER_AT_MAX_DISTANCE, _cast_distance_t(player, rod))
 
 	_zone_pos = 0.5
 	_zone_vel = 0.0
@@ -263,6 +274,21 @@ func _difficulty_t(fish_data: FishData) -> float:
 		inverse_lerp(VALUE_FOR_MIN_DIFFICULTY, VALUE_FOR_MAX_DIFFICULTY, float(fish_data.base_value)),
 		0.0, 1.0
 	)
+
+
+## 0.0 (landed right next to the angler) .. 1.0 (landed at/beyond max cast
+## distance) -- reads the real landing spot from ReelFightManager rather
+## than needing it threaded through bite_started's own signal. Missing
+## fight data (manager not found, or this peer has no recorded anchor)
+## falls back to 0.0 -- no distance penalty rather than guessing.
+func _cast_distance_t(player: Player, rod: Rod) -> float:
+	if _reel_fight_manager == null:
+		return 0.0
+	var anchor: Variant = _reel_fight_manager.get_fight_anchor(player.peer_id)
+	if anchor == null or rod.max_cast_distance <= 0.0:
+		return 0.0
+	var dist := player.global_position.distance_to(anchor as Vector3)
+	return clampf(dist / rod.max_cast_distance, 0.0, 1.0)
 
 
 func _process(delta: float) -> void:
@@ -314,7 +340,7 @@ func _update_fish(delta: float) -> void:
 func _update_progress(delta: float) -> void:
 	var zone_half := _zone_height * 0.5
 	var overlapping := absf(_fish_pos - _zone_pos) <= zone_half
-	_progress += (FILL_RATE if overlapping else -_drain_rate) * delta
+	_progress += (_fill_rate if overlapping else -_drain_rate) * delta
 	_progress = clampf(_progress, 0.0, 1.0)
 
 

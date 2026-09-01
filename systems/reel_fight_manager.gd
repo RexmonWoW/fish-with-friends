@@ -39,6 +39,22 @@ const KICK_STRENGTH: float = 0.4
 ## only how often the RESULT goes out over the wire is throttled.
 const BROADCAST_INTERVAL: float = 1.0 / 12.0  ## ~12Hz
 
+## Playtest: "yanks in the instant a fight starts" -- ReelMinigame's own
+## _progress starts at 0.5, not 0.0, but this used to map progress 0..1
+## straight onto anchor..angler, so the bobber jumped to roughly halfway
+## reeled-in the moment the fight began. Matches ReelMinigame._progress's
+## own starting value -- display is remapped below so THIS corresponds to
+## the landing spot (t = 0), not wherever the raw 0..1 progress number
+## happens to sit.
+const START_PROGRESS: float = 0.5
+
+## "Let the fish take line" -- when progress drops below START_PROGRESS
+## (the fish pulling back), the bobber drags back out past the anchor
+## instead of clamping dead at it. Capped to a modest overshoot rather
+## than a full linear projection (progress hitting 0.0 would otherwise
+## fling it a full anchor-to-angler distance out).
+const MIN_DISPLAY_T: float = -0.15
+
 var _fights: Dictionary = {}  # peer_id (int) -> {anchor, progress, display_progress, kick_dir, kick_timer}
 var _broadcast_timer: float = 0.0
 
@@ -59,9 +75,16 @@ func _ready() -> void:
 ## the real landing spot, which bite_started's public signal doesn't carry.
 func start_fight(peer_id: int, anchor: Vector3) -> void:
 	_fights[peer_id] = {
-		"anchor": anchor, "progress": 0.0, "display_progress": 0.0,
+		"anchor": anchor, "progress": START_PROGRESS, "display_progress": START_PROGRESS,
 		"kick_dir": 0.0, "kick_timer": 0.0,
 	}
+
+
+## Read-only, safe on any peer -- lets ReelMinigame look up the real landing
+## spot for GDD's cast-distance-scales-fill-rate rule without needing it
+## threaded through bite_started's own signal signature.
+func get_fight_anchor(peer_id: int) -> Variant:
+	return _fights[peer_id]["anchor"] if _fights.has(peer_id) else null
 
 
 ## Called by BiteEventManager once the fight is over, one way or another
@@ -119,7 +142,12 @@ func _compute_bobber_world_position(peer_id: int, f: Dictionary) -> Variant:
 	var near_point: Vector3 = player.global_position
 
 	var anchor: Vector3 = f["anchor"]
-	var t: float = f["display_progress"]
+	# Remapped so START_PROGRESS (where every fight begins) lands exactly on
+	# the anchor (t=0) and 1.0 lands on the angler (t=1) -- see
+	# START_PROGRESS's own doc comment. Progress dropping below where it
+	# started extrapolates PAST the anchor (t < 0, "the fish takes line")
+	# instead of clamping dead at it.
+	var t := clampf((f["display_progress"] as float - START_PROGRESS) / (1.0 - START_PROGRESS), MIN_DISPLAY_T, 1.0)
 	var anchor_xz := Vector2(anchor.x, anchor.z)
 	var near_xz := Vector2(near_point.x, near_point.z)
 	# XZ closes toward the angler as progress builds; Y stays pinned to the
