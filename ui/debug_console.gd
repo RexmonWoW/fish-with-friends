@@ -51,7 +51,7 @@ func _ready() -> void:
 	_input.set_anchors_preset(Control.PRESET_CENTER)
 	_input.position = -PANEL_SIZE / 2.0 + Vector2(16, 66)
 	_input.custom_minimum_size = Vector2(PANEL_SIZE.x - 32, 28)
-	_input.placeholder_text = "skip_round / skip_day / set_time <seconds> / add_money <amount>"
+	_input.placeholder_text = "skip_round / skip_day / set_time <s> / add_money <amt> / save_run|load_run <slot> / list_saves"
 	_input.text_submitted.connect(_on_submitted)
 	add_child(_input)
 
@@ -103,6 +103,29 @@ func _run_command(command: String) -> void:
 				return
 			RunState.debug_add_money(int(parts[1]))
 			_log_line("Added $%s to the shared pot." % parts[1])
+		"save_run":
+			if parts.size() < 2 or not parts[1].is_valid_int():
+				_log_line("usage: save_run <slot 0-3>")
+				return
+			var result: Dictionary = RunSaveManager.save_to_slot(int(parts[1]))
+			if result["success"]:
+				_log_line("Saved to slot %s." % parts[1])
+			else:
+				_log_line("Save failed: %s" % result["reason"])
+		"load_run":
+			if parts.size() < 2 or not parts[1].is_valid_int():
+				_log_line("usage: load_run <slot 0-3>")
+				return
+			var result: Dictionary = RunSaveManager.load_from_slot(int(parts[1]))
+			if result["success"]:
+				_log_line("Loaded slot %s." % parts[1])
+			else:
+				_log_line("Load failed: %s" % result["reason"])
+		"list_saves":
+			var lines := RunSaveManager.describe_slots()
+			for line in lines:
+				print(line)
+			_log_line("Listed %d slots -- see console output." % lines.size())
 		_:
 			_log_line("Unknown command: %s" % parts[0])
 

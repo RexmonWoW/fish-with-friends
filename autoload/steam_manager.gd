@@ -85,6 +85,23 @@ func get_display_name_for_peer(peer_id: int) -> String:
 	return friend_name
 
 
+## Resolves a Godot multiplayer peer_id to their real SteamID64 -- same
+## peer_id-is-not-a-Steam-ID caveat as get_display_name_for_peer above.
+## GDD Run Saves: per-player state is keyed by Steam ID, not peer_id
+## (peer_id is only a session-local slot number and means nothing once
+## everyone's disconnected). Returns 0 if it can't be resolved (Steam
+## unavailable, peer not found) -- callers treat that as "can't save/
+## restore this player's state," never as a real ID.
+func get_steam_id_for_peer(peer_id: int) -> int:
+	if peer_id == multiplayer.get_unique_id():
+		return Steam.getSteamID()
+
+	var mp_peer := multiplayer.multiplayer_peer as SteamMultiplayerPeer
+	if mp_peer == null:
+		return 0
+	return mp_peer.get_steam_id_for_peer_id(peer_id)
+
+
 # ── Steam callbacks ────────────────────────────────────────────────────────────
 
 func _on_lobby_created(result: int, lobby_id: int) -> void:

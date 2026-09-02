@@ -56,6 +56,15 @@ var current_quota: int = 0
 ## shop sells, which is per-player PlayerStats), so it lives here instead.
 var has_fish_finder: bool = false
 
+## GDD Run Saves: "the player-count multiplier the run was created with...
+## fixed at creation and does not rescale." Set once in reset_for_new_run()
+## (or restored verbatim by RunSaveManager on load) and never recomputed
+## after -- the quota growth formula below is already self-contained off
+## current_quota/surplus and never re-reads this past day 1, so this is
+## really just record-keeping (RunSave persists it, phase 2's slot picker
+## will want it), but it's real crew state GDD calls out explicitly.
+var player_count_multiplier: float = 1.0
+
 var _time_remaining: float = 0.0
 var _round_active: bool = false  ## host-only: is the round timer actually ticking
 var _day_earned_so_far: int = 0  ## sum of each round's sale within the current day, reported in day_summary
@@ -76,10 +85,34 @@ func reset_for_new_run() -> void:
 	day_number = 1
 	round_number = 1
 	total_money_earned = 0
+	player_count_multiplier = _compute_player_count_multiplier()
 	current_quota = _compute_day1_quota()
 	has_fish_finder = false
 	_round_active = false
 	_day_earned_so_far = 0
+
+
+## Host-only. GDD Run Saves: restores crew-level economy state from a
+## loaded save and broadcasts it to every peer -- same "host computes,
+## broadcasts the result" pattern as everywhere else in this file.
+## RunSaveManager calls this rather than setting these fields directly, so
+## a load is never just the host's own local view. Deliberately separate
+## from _notify_round_started -- that one means "a round with a real timer
+## is starting," which isn't true here (a load happens sitting in the
+## lobby, round_number/round timer untouched).
+func restore_crew_state(day: int, quota: int, money: int, fish_finder: bool, multiplier: float) -> void:
+	if not multiplayer.is_server():
+		return
+	_notify_crew_state_restored.rpc(day, quota, money, fish_finder, multiplier)
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_crew_state_restored(day: int, quota: int, money: int, fish_finder: bool, multiplier: float) -> void:
+	day_number = day
+	current_quota = quota
+	total_money_earned = money
+	has_fish_finder = fish_finder
+	player_count_multiplier = multiplier
 
 
 ## Host-only. Called once the lake finishes loading for a round.
@@ -330,7 +363,10 @@ func debug_skip_day() -> void:
 	debug_skip_round()
 
 
-func _compute_day1_quota() -> int:
+func _compute_player_count_multiplier() -> float:
 	var player_count := clampi(NetworkManager.spawned_players.size(), 1, 4)
-	var multiplier: float = PLAYER_COUNT_MULTIPLIER.get(player_count, 1.0)
-	return int(round(float(BASE_QUOTA) * multiplier))
+	return PLAYER_COUNT_MULTIPLIER.get(player_count, 1.0)
+
+
+func _compute_day1_quota() -> int:
+	return int(round(float(BASE_QUOTA) * player_count_multiplier))

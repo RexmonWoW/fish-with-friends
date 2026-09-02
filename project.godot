@@ -23,6 +23,7 @@ AudioManager="*uid://bb5avi2glrqdy"
 SteamManager="*uid://cwqslk58r28is"
 NetworkManager="*uid://b66e6x6lh6vv8"
 RunState="*uid://cabd5bwkcbkh3"
+RunSaveManager="*res://autoload/run_save_manager.gd"
 
 [global_group]
 
