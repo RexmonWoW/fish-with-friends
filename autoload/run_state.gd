@@ -5,15 +5,18 @@ extends Node
 ## reliable "authority" RPC so every peer's local copy matches) -- see
 ## Livewell/TangleManager/BiteEventManager for the same pattern.
 ##
-## GDD: 2 rounds = 1 day, 5-min rounds, money quota due every 2 rounds
-## (cumulative across days, never resets), run ends on a missed quota.
-## Quota Scaling (GDD): day 1 = BASE_QUOTA * player-count multiplier; every
-## day after, next_quota = round(previous_quota * 1.15 + surplus * 0.4),
-## where surplus is how much the cumulative total cleared the previous
-## quota by (0 if you just barely passed) -- climbs faster the more you
-## clear it by, so one big haul doesn't buy several free days. BASE_QUOTA
-## and the 1.15/0.4 constants are GDD's own placeholders, still pending
-## real balancing.
+## GDD: 2 rounds = 1 day, 5-min rounds, money quota due every 2 rounds, run
+## ends on a missed quota. Quota Scaling (GDD): day 1 = BASE_QUOTA *
+## player-count multiplier; every day after, next_quota = round(previous_quota
+## * 1.35 + surplus * 0.5), where surplus is how much total_money_earned
+## cleared the previous quota by (0 if you just barely passed) -- climbs
+## faster the more you clear it by, so one big haul doesn't buy several free
+## days. BASE_QUOTA and the 1.35/0.5 constants are GDD's own placeholders,
+## still pending real balancing.
+## Quota is paid OUT of the pot at the end of each passed day -- only the
+## surplus (this day's own total_money_earned minus what it owed) carries
+## into the next day, so total_money_earned is per-day, not cumulative
+## across the whole run.
 ## Fish sell at the end of EVERY round now, not just at day's end -- heading
 ## back to shore between rounds, per direction 2026-08-30 (previously the
 ## livewell carried unsold fish from round 1 into round 2). The quota
@@ -31,8 +34,8 @@ const ROUNDS_PER_DAY: int = 2
 
 ## GDD's own starting-point placeholders (see Quota Scaling section).
 const BASE_QUOTA: int = 100
-const QUOTA_DAILY_GROWTH: float = 1.15
-const QUOTA_SURPLUS_FACTOR: float = 0.4
+const QUOTA_DAILY_GROWTH: float = 1.35
+const QUOTA_SURPLUS_FACTOR: float = 0.5
 
 const PLAYER_COUNT_MULTIPLIER: Dictionary = {1: 1.0, 2: 1.6, 3: 2.1, 4: 2.5}
 
@@ -72,14 +75,19 @@ func start_round() -> void:
 		return
 	_time_remaining = ROUND_DURATION_SECONDS
 	_round_active = true
-	_notify_round_started.rpc(round_number, day_number, ROUND_DURATION_SECONDS, current_quota)
+	_notify_round_started.rpc(round_number, day_number, ROUND_DURATION_SECONDS, current_quota, total_money_earned)
 
 
 @rpc("authority", "call_local", "reliable")
-func _notify_round_started(r: int, d: int, duration: float, quota: int) -> void:
+func _notify_round_started(r: int, d: int, duration: float, quota: int, money: int) -> void:
 	round_number = r
 	day_number = d
 	current_quota = quota
+	# Quota-paid-out (see _end_round) only ever mutates the host's own copy
+	# directly, not through a broadcast of its own -- carried here instead,
+	# since every peer needs the corrected total before the next day's HUD
+	# readout means anything.
+	total_money_earned = money
 	round_started.emit(r, d, duration)
 
 
@@ -112,6 +120,12 @@ func _end_round() -> void:
 	if passed:
 		var surplus := maxi(total_money_earned - current_quota, 0)
 		current_quota = int(round(float(current_quota) * QUOTA_DAILY_GROWTH + float(surplus) * QUOTA_SURPLUS_FACTOR))
+		# Quota gets paid out of the pot at day end -- only the profit
+		# carries into the next day, rather than every day's earnings
+		# piling up forever on top of an ever-rising quota bar. Runs after
+		# _notify_day_summary above, which already reported the real
+		# pre-payment total earned this day.
+		total_money_earned = surplus
 		day_number += 1
 		round_number = 1
 		NetworkManager.return_to_lobby_between_rounds()

@@ -109,10 +109,10 @@ func _on_local_player_spawned(_player: Player) -> void:
 		return
 	print("Day 1 passed correctly -- now day 2 round 1, back in lobby, quota auto-escalated to %d" % RunState.current_quota)
 
-	# Day 2: no new catches, and total_money_earned is cumulative (by design,
-	# per GDD -- it never resets), so it'd still clear day 2's auto-escalated
-	# quota on its own. Force a genuine miss the same way day 1's pass was
-	# forced -- override the quota directly, well above the $500 total.
+	# Day 2: no new catches, and quota already got paid out of day 1's $500
+	# at day 1's end (see RunState._end_round) -- only the $400 surplus
+	# carried in. Force a genuine miss the same way day 1's pass was forced
+	# -- override the quota directly, well above that.
 	NetworkManager.request_start_round()
 	if not await _wait_for_scene(&"lake"):
 		print("FAIL: never reached the lake for day 2 round 1")

@@ -2,10 +2,13 @@ extends Node
 
 ## Headless check for the adaptive quota formula (GDD Quota Scaling):
 ## day 1 = BASE_QUOTA * player-count multiplier; every day after,
-## next_quota = round(previous_quota * 1.15 + surplus * 0.4), surplus being
-## how much the cumulative total cleared the previous quota by. Covers a
-## bare pass (surplus=0, pure 1.15x growth) and a big-surplus pass (grows
-## faster) against hand-computed expected values, not just "did it move."
+## next_quota = round(previous_quota * QUOTA_DAILY_GROWTH + surplus *
+## QUOTA_SURPLUS_FACTOR), surplus being how much that day's own
+## total_money_earned cleared the day's quota by (quota gets paid out of the
+## pot at day end -- only the surplus carries into the next day). Covers a
+## bare pass (surplus=0, pure QUOTA_DAILY_GROWTH growth) and a big-surplus
+## pass (grows faster) against hand-computed expected values, not just "did
+## it move."
 
 func _ready() -> void:
 	print("--- Quota formula test ---")
@@ -36,7 +39,7 @@ func _on_local_player_spawned(_player: Player) -> void:
 		get_tree().quit(1)
 		return
 
-	# ── Bare pass: earn exactly the quota, zero surplus -- pure 1.15x growth. ──
+	# ── Bare pass: earn exactly the quota, zero surplus -- pure QUOTA_DAILY_GROWTH growth. ──
 	var day1_quota: int = RunState.current_quota
 	var livewell := get_tree().get_first_node_in_group("livewell") as Livewell
 	var fish := CaughtFish.new()
@@ -64,7 +67,7 @@ func _on_local_player_spawned(_player: Player) -> void:
 	var expected_day2 := int(round(float(day1_quota) * RunState.QUOTA_DAILY_GROWTH))  # surplus=0
 	print("Day 2 quota (bare pass, surplus=0): expected=%d actual=%d" % [expected_day2, RunState.current_quota])
 	if RunState.current_quota != expected_day2:
-		print("FAIL: bare-pass day 2 quota doesn't match previous_quota * 1.15")
+		print("FAIL: bare-pass day 2 quota doesn't match previous_quota * QUOTA_DAILY_GROWTH")
 		get_tree().quit(1)
 		return
 
@@ -101,10 +104,11 @@ func _on_local_player_spawned(_player: Player) -> void:
 		get_tree().quit(1)
 		return
 
-	# total_money_earned is cumulative across the WHOLE run, not per-day --
-	# day 1's earnings (day1_quota, sold at day 1's end) are still counted
-	# on top of day 2's.
-	var total_after_day2: int = day1_quota + day2_quota * 3
+	# Quota is paid out of the pot at the end of each passed day (see
+	# RunState._end_round) -- day 1 exactly met its quota with zero surplus,
+	# so nothing carried into day 2. total_money_earned at day 2's own end
+	# is just this round's big catch on top of that.
+	var total_after_day2: int = 0 + day2_quota * 3
 	var surplus := maxi(total_after_day2 - day2_quota, 0)
 	var expected_day3 := int(round(float(day2_quota) * RunState.QUOTA_DAILY_GROWTH + float(surplus) * RunState.QUOTA_SURPLUS_FACTOR))
 	print("Day 3 quota (big surplus): expected=%d actual=%d" % [expected_day3, RunState.current_quota])

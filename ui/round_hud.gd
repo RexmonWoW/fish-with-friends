@@ -107,8 +107,14 @@ func _on_round_sold(round_number: int, _day_number: int, earned: int, total: int
 func _on_day_summary(day_number: int, earned: int, total: int, quota: int, passed: bool) -> void:
 	_update_money_label()
 	if passed:
-		_show_summary("Day %d complete! Earned $%d (total $%d) — quota $%d met. Day %d starting." %
-			[day_number, earned, total, quota, day_number + 1])
+		# Quota gets paid out of the pot at day end (RunState._end_round) --
+		# `total` here is still the real pre-payment total this signal
+		# reported, so the carry-over has to be spelled out explicitly or
+		# the very next round's money readout would look like it dropped
+		# for no reason.
+		var carry := maxi(total - quota, 0)
+		_show_summary("Day %d complete! Earned $%d (total $%d) — quota $%d paid, $%d carries into Day %d." %
+			[day_number, earned, total, quota, carry, day_number + 1])
 	else:
 		_show_summary("Day %d complete. Earned $%d (total $%d) — quota $%d NOT met." %
 			[day_number, earned, total, quota])
