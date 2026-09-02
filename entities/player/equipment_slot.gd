@@ -62,6 +62,11 @@ func equip_rod() -> void:
 	var cam: Camera3D = get_parent().get_node_or_null("CameraRig/CameraPitch/Camera3D")
 	rod.player_camera = cam
 
+	# Same reasoning as the camera reference -- Rod reads cast range every
+	# frame while charging (the landing preview), so it gets a direct cached
+	# reference rather than looking the owning Player up each time.
+	rod.stats = (get_parent() as Player).stats
+
 	equipped_item = rod
 
 

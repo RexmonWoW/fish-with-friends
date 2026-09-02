@@ -24,7 +24,12 @@ const VISUAL_FISH_SCENE: PackedScene = preload("res://entities/visual_fish/visua
 
 const AMBIENT_COUNT: int = 6
 const HOME_MIN_DIST: float = 4.0   ## from the map center (Livewell), roughly boat's edge
-const HOME_MAX_DIST: float = 20.0  ## comfortably inside max_cast_distance (30, see Rod)
+## GDD Casting: the default cast range (PlayerStats.max_cast_distance, 12.0)
+## is deliberately short -- rod range upgrades are the progression axis, so
+## the ambient habitat reaching out to 20 is intentionally BEYOND default
+## range, not "comfortably inside" it anymore. That's the whole point: the
+## far edge of the habitat is locked behind a range upgrade.
+const HOME_MAX_DIST: float = 20.0
 const SWIM_SPEED: float = 2.0           ## m/s, called shadow swimming to a bobber
 const MIN_CALL_TRAVEL_SECONDS: float = 0.6
 ## A shadow called from way out in the escalating-radius search (see

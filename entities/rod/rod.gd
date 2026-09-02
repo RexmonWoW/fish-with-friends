@@ -3,7 +3,6 @@ extends Node3D
 
 enum CastState { IDLE, CHARGING, ANIMATING, WAITING_BITE, REELING, BIG_FISH_EVENT }
 
-@export var max_cast_distance: float = 30.0  ## meters from rod tip
 @export var min_cast_distance: float = 3.0
 @export var charge_time_to_full: float = 1.5  ## seconds of hold to reach max power
 
@@ -44,6 +43,7 @@ var charge_start_time: float = 0.0
 var current_power: float = 0.0      ## 0.0–1.0, NOT replicated
 var owner_peer_id: int = 0          ## set by EquipmentSlot on equip
 var player_camera: Camera3D = null  ## set by EquipmentSlot on equip
+var stats: PlayerStats = null       ## set by EquipmentSlot on equip -- owning Player's PlayerStats
 
 ## False while stowed on the back (EquipmentSlot.unequip_rod(), e.g. holding
 ## a caught fish) -- the Rod node stays alive and in the tree either way, so
@@ -383,7 +383,7 @@ func _compute_aim_point(cam_origin: Vector3, cam_forward: Vector3, power: float)
 		horizontal = Vector3(0.0, 0.0, -1.0)  # looking straight up/down — fall back
 	var direction := horizontal.normalized()
 
-	var distance := maxf(power * max_cast_distance, min_cast_distance)
+	var distance := maxf(power * stats.max_cast_distance, min_cast_distance)
 	return Vector3(cam_origin.x, cam_origin.y, cam_origin.z) + direction * distance
 
 

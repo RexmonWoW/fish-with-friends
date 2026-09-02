@@ -16,19 +16,21 @@ extends Control
 ## gone). Zero misses on a successful catch = perfect catch, passed through
 ## to BiteEventManager for the GDD value bonus.
 
-## "Base" values below are what the easiest (lowest-value) fish plays like --
-## unchanged from before difficulty scaling existed. "Hard" values are what
-## the hardest (highest-value) fish plays like. Every real reel lerps
-## between the two by the hooked fish's own FishData.base_value (see
-## _difficulty_t/_apply_difficulty) -- "fish should be harder to catch the
-## more value they'll have," by request. Not tied to whatever species
-## happen to exist today (VALUE_FOR_MIN/MAX_DIFFICULTY below) so a future
-## higher-tier fish added later automatically lands harder without needing
-## to rebalance existing species.
-const ZONE_HEIGHT: float = 0.28
+## "Base" values below are what the easiest (lowest-value) fish plays like.
+## "Hard" values are what the hardest (highest-value) fish plays like. Every
+## real reel lerps between the two by the hooked fish's own FishData.
+## base_value (see _difficulty_t/_apply_difficulty) -- "fish should be
+## harder to catch the more value they'll have," by request. Not tied to
+## whatever species happen to exist today (VALUE_FOR_MIN/MAX_DIFFICULTY
+## below) so a future higher-tier fish added later automatically lands
+## harder without needing to rebalance existing species.
+##
+## The base ends of ZONE_HEIGHT, ZONE_SHRINK_PER_MISS, FILL_RATE, and
+## QTE_WINDOW moved to PlayerStats (data/player_stats.gd) -- the numbers a
+## Per-Run Shop upgrade would actually sell. The "_HARD" ends stay fixed
+## consts for now; only the easy end is a stat.
 const ZONE_HEIGHT_HARD: float = 0.15
 const MIN_ZONE_HEIGHT: float = 0.10
-const ZONE_SHRINK_PER_MISS: float = 0.05
 const RISE_ACCEL: float = 2.6
 const FALL_ACCEL: float = 1.8
 const MAX_ZONE_SPEED: float = 1.6
@@ -36,24 +38,22 @@ const FISH_SPEED: float = 0.5          ## units of [0,1] per second toward its t
 const FISH_SPEED_HARD: float = 1.0
 const FISH_RETARGET_MIN: float = 0.4   ## seconds
 const FISH_RETARGET_MAX: float = 1.4
-const FILL_RATE: float = 0.35          ## progress/sec while overlapping
 const DRAIN_RATE: float = 0.22         ## progress/sec while not overlapping
 const DRAIN_RATE_HARD: float = 0.34
 
 ## GDD: "cast distance should matter" -- a far cast takes noticeably longer
-## to reel in. Scales FILL_RATE down by how far the landing spot was from
-## the angler at fight start, full speed at close range down to this
-## fraction at max cast distance (Rod.max_cast_distance). Placeholder,
-## tune-by-feel like every other constant here -- stacks independently with
-## the existing fish-value difficulty scaling below (that one never touched
-## FILL_RATE at all).
+## to reel in. Scales the fill rate stat down by how far the landing spot
+## was from the angler at fight start, full speed at close range down to
+## this fraction at max cast distance (PlayerStats.max_cast_distance).
+## Placeholder, tune-by-feel like every other constant here -- stacks
+## independently with the fish-value difficulty scaling above (that one
+## never touches fill rate at all).
 const FILL_RATE_MULTIPLIER_AT_MAX_DISTANCE: float = 0.65
 
 const QTE_MIN_INTERVAL: float = 2.2
 const QTE_MIN_INTERVAL_HARD: float = 1.2
 const QTE_MAX_INTERVAL: float = 4.5
 const QTE_MAX_INTERVAL_HARD: float = 2.4
-const QTE_WINDOW: float = 1.1          ## seconds to react
 const QTE_WINDOW_HARD: float = 0.65
 const QTE_FISH_BOLT_SPEED: float = 2.5 ## fish speed multiplier while a QTE is active
 const MAX_MISSES: int = 3
@@ -80,14 +80,17 @@ var _active: bool = false
 ## every nearby peer) reels in/out along with this private UI.
 var _reel_fight_manager: Node = null
 
-## Per-reel, computed from the hooked fish's value in _try_start_reel --
-## see the BASE/HARD const pairs above.
+## Per-reel, computed from the hooked fish's value (and, for fill rate,
+## cast distance too) in _try_start_reel -- see the BASE/HARD const pairs
+## above and PlayerStats for where the "base" ends now come from. Defaults
+## here are never actually read (always overwritten before _active goes
+## true) -- just documenting what they'll be lerped from.
 var _fish_speed: float = FISH_SPEED
 var _drain_rate: float = DRAIN_RATE
 var _qte_min_interval: float = QTE_MIN_INTERVAL
 var _qte_max_interval: float = QTE_MAX_INTERVAL
-var _qte_window: float = QTE_WINDOW
-var _fill_rate: float = FILL_RATE  ## per-reel, scaled by cast distance -- see _try_start_reel
+var _qte_window: float = 0.0
+var _fill_rate: float = 0.0
 
 ## While the local player is tangled (see EventBus.tangle_started/resolved),
 ## a bite that fires mid-tangle shouldn't pop the reel up on top of the
@@ -100,7 +103,7 @@ var _deferred_bite: FishData = null
 
 var _zone_pos: float = 0.5
 var _zone_vel: float = 0.0
-var _zone_height: float = ZONE_HEIGHT
+var _zone_height: float = 0.0  ## never actually read -- see the block comment above
 var _fish_pos: float = 0.5
 var _fish_target: float = 0.5
 var _fish_retarget_timer: float = 0.0
@@ -161,7 +164,7 @@ func _build_ui() -> void:
 
 	_zone_rect = ColorRect.new()
 	_zone_rect.color = Color(1.0, 1.0, 1.0, 0.35)
-	_zone_rect.size = Vector2(BAR_WIDTH, BAR_HEIGHT * ZONE_HEIGHT)
+	_zone_rect.size = Vector2(BAR_WIDTH, BAR_HEIGHT * 0.28)  # placeholder -- hidden until _try_start_reel sets the real height
 	_zone_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar_bg.add_child(_zone_rect)
 
@@ -239,17 +242,18 @@ func _try_start_reel(fish_data: FishData, caster_peer_id: int) -> void:
 	_rod.state = Rod.CastState.REELING
 	_reel_fight_manager = get_tree().get_first_node_in_group("reel_fight_manager")
 
+	var stats := player.stats
 	var t := _difficulty_t(fish_data)
 	_fish_speed = lerpf(FISH_SPEED, FISH_SPEED_HARD, t)
 	_drain_rate = lerpf(DRAIN_RATE, DRAIN_RATE_HARD, t)
 	_qte_min_interval = lerpf(QTE_MIN_INTERVAL, QTE_MIN_INTERVAL_HARD, t)
 	_qte_max_interval = lerpf(QTE_MAX_INTERVAL, QTE_MAX_INTERVAL_HARD, t)
-	_qte_window = lerpf(QTE_WINDOW, QTE_WINDOW_HARD, t)
-	_fill_rate = FILL_RATE * lerpf(1.0, FILL_RATE_MULTIPLIER_AT_MAX_DISTANCE, _cast_distance_t(player, rod))
+	_qte_window = lerpf(stats.reel_qte_window, QTE_WINDOW_HARD, t)
+	_fill_rate = stats.reel_fill_rate * lerpf(1.0, FILL_RATE_MULTIPLIER_AT_MAX_DISTANCE, _cast_distance_t(player))
 
 	_zone_pos = 0.5
 	_zone_vel = 0.0
-	_zone_height = lerpf(ZONE_HEIGHT, ZONE_HEIGHT_HARD, t)
+	_zone_height = lerpf(stats.reel_zone_height, ZONE_HEIGHT_HARD, t)
 	_fish_pos = 0.5
 	_fish_target = 0.5
 	_fish_retarget_timer = 0.0
@@ -281,14 +285,15 @@ func _difficulty_t(fish_data: FishData) -> float:
 ## than needing it threaded through bite_started's own signal. Missing
 ## fight data (manager not found, or this peer has no recorded anchor)
 ## falls back to 0.0 -- no distance penalty rather than guessing.
-func _cast_distance_t(player: Player, rod: Rod) -> float:
+func _cast_distance_t(player: Player) -> float:
 	if _reel_fight_manager == null:
 		return 0.0
 	var anchor: Variant = _reel_fight_manager.get_fight_anchor(player.peer_id)
-	if anchor == null or rod.max_cast_distance <= 0.0:
+	var max_distance := player.stats.max_cast_distance
+	if anchor == null or max_distance <= 0.0:
 		return 0.0
 	var dist := player.global_position.distance_to(anchor as Vector3)
-	return clampf(dist / rod.max_cast_distance, 0.0, 1.0)
+	return clampf(dist / max_distance, 0.0, 1.0)
 
 
 func _process(delta: float) -> void:
@@ -385,7 +390,7 @@ func _on_qte_missed() -> void:
 	_qte_active = false
 	_qte_label.hide()
 	_miss_count += 1
-	_zone_height = maxf(_zone_height - ZONE_SHRINK_PER_MISS, MIN_ZONE_HEIGHT)
+	_zone_height = maxf(_zone_height - _rod.stats.reel_zone_shrink_per_miss, MIN_ZONE_HEIGHT)
 	_update_miss_label()
 
 	if _miss_count >= MAX_MISSES:

@@ -6,27 +6,26 @@ extends Node
 ## around continuously instead of biting on an invisible timer. Casting near
 ## one calls it -- it breaks off and swims to the landed bobber; casting
 ## where nothing's nearby isn't a dead cast, this just keeps polling for a
-## wandering shadow to drift into range (see CALL_RADIUS_GROWTH_PER_SEC).
+## wandering shadow to drift into range (see PlayerStats.bite_call_radius_growth_per_sec).
 ## Arrival opens a short hook-set window; miss it and the fish spooks back
 ## off to wander again (still out there, callable by anyone). Hook-set
 ## success drops into the existing Reel Mechanic exactly as before -- this
 ## rework only changes what happens BEFORE bite_started fires, not what
 ## happens after.
 
-const HOOK_WINDOW_SECONDS: float = 1.0      ## how long the player has to set the hook once struck
-const SPOOK_PAUSE_SECONDS: float = 1.5      ## pause before looking for another shadow after a miss
-
 ## "Aiming well gets a faster, more certain bite; aiming blind means waiting
 ## on whatever wanders by" (GDD) -- rather than a hard "nothing nearby, no
 ## bite," the radius VisualFishSpawner.try_call_for() searches within grows
 ## the longer a caster's been waiting, so a blind cast is never truly dead,
-## just slower and less precise. Capped at CALL_RADIUS_MAX -- GDD's spatial
-## rarity ("a shadow across the lake never comes to you... gives the water a
-## readable shape") only means something if waiting long enough can't
-## eventually reach literally everything, the way an uncapped grow rate did.
-const CALL_RADIUS_BASE: float = 4.0
-const CALL_RADIUS_GROWTH_PER_SEC: float = 12.0
-const CALL_RADIUS_MAX: float = 10.0  ## conservative placeholder, tune by feel
+## just slower and less precise. Capped -- GDD's spatial rarity ("a shadow
+## across the lake never comes to you... gives the water a readable shape")
+## only means something if waiting long enough can't eventually reach
+## literally everything, the way an uncapped grow rate did.
+##
+## All five pacing numbers here (hook window, spook pause, call radius base/
+## growth/cap) moved to PlayerStats (data/player_stats.gd) -- the numbers a
+## Per-Run Shop upgrade would actually sell. Read fresh per bite sequence
+## from the CASTER's own stats, not a shared const.
 
 ## Assign res://entities/fish/fish.tscn in the inspector.
 @export var fish_scene: PackedScene
@@ -102,6 +101,11 @@ func _on_cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: i
 ## tangle loss, disconnect -- _cancel_pending() bumps _sequence_id so this
 ## just quietly stops mattering).
 func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: float) -> void:
+	var caster: Player = NetworkManager.spawned_players.get(caster_peer_id)
+	if caster == null:
+		return
+	var stats := caster.stats
+
 	var my_sequence := _next_sequence_id
 	_next_sequence_id += 1
 	_sequence_id[caster_peer_id] = my_sequence
@@ -120,13 +124,16 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 	while true:
 		# Poll for a wandering shadow within range, widening the search the
 		# longer this particular attempt (this shadow, this hook window) has
-		# been waiting -- see CALL_RADIUS_GROWTH_PER_SEC's doc comment above.
+		# been waiting -- see PlayerStats.bite_call_radius_growth_per_sec's doc comment above.
 		# Not a dead cast even if nothing's nearby yet, but capped so it's
 		# never a dead cast that ALSO quietly stops meaning where you aimed.
 		var call_result: Dictionary = {}
 		var waited := 0.0
 		while call_result.is_empty():
-			var radius := minf(CALL_RADIUS_BASE + CALL_RADIUS_GROWTH_PER_SEC * waited, CALL_RADIUS_MAX)
+			var radius := minf(
+				stats.bite_call_radius_base + stats.bite_call_radius_growth_per_sec * waited,
+				stats.bite_call_radius_max
+			)
 			call_result = spawner.try_call_for(caster_peer_id, endpoint, radius)
 			if not call_result.is_empty():
 				break
@@ -151,10 +158,10 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		# immediately instead of sitting through the whole thing.
 		_hook_open[caster_peer_id] = true
 		_hook_set[caster_peer_id] = false
-		_notify_hook_window.rpc(caster_peer_id, HOOK_WINDOW_SECONDS)
+		_notify_hook_window.rpc(caster_peer_id, stats.bite_hook_window_seconds)
 
 		var elapsed := 0.0
-		while elapsed < HOOK_WINDOW_SECONDS and not _hook_set.get(caster_peer_id, false):
+		while elapsed < stats.bite_hook_window_seconds and not _hook_set.get(caster_peer_id, false):
 			await get_tree().process_frame
 			elapsed += get_process_delta_time()
 			if _sequence_id.get(caster_peer_id, -1) != my_sequence:
@@ -174,7 +181,7 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		spawner.release_shadow(shadow_id)
 		_notify_hook_missed.rpc(caster_peer_id)
 
-		await get_tree().create_timer(SPOOK_PAUSE_SECONDS).timeout
+		await get_tree().create_timer(stats.bite_spook_pause_seconds).timeout
 		if _sequence_id.get(caster_peer_id, -1) != my_sequence:
 			return
 

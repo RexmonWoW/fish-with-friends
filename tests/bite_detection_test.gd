@@ -85,7 +85,7 @@ func _on_local_player_spawned(player: Player) -> void:
 
 	# ── Ignore the window (miss it on purpose). ──
 	var missed_wait := 0.0
-	while _hook_windows_missed < 1 and missed_wait < BiteEventManager.HOOK_WINDOW_SECONDS + 1.0:
+	while _hook_windows_missed < 1 and missed_wait < rod.stats.bite_hook_window_seconds + 1.0:
 		await get_tree().process_frame
 		missed_wait += get_process_delta_time()
 	if _hook_windows_missed != 1:
