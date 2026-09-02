@@ -124,3 +124,20 @@ signal big_fish_qte_missed(peer_id: int)
 ## if it ran out first (capsize + lose 2 biggest fish already applied by
 ## the time this fires).
 signal big_fish_event_resolved(success: bool)
+
+# ── Per-Run Shop signals ─────────────────────────────────────────────────────
+## GDD Per-Run Shop. Host-authoritative (ShopCounter), broadcast to every
+## peer -- everyone browsing the shop together needs to see a crewmate's
+## purchase land live, not just the buyer.
+
+## Emitted locally (per-peer, not networked) when the LOCAL player enters or
+## exits a ShopCounter's InteractionZone. Same shape as
+## livewell_proximity_changed. Listeners: ShopDisplay UI.
+signal shop_proximity_changed(shop: Node, in_range: bool)
+
+## A purchase attempt resolved, success or not. requester_peer_id is who
+## asked for it (so the UI can show a failure reason only to them --
+## everyone else just needs the refresh); target_peer_id is who the
+## upgrade was for (meaningless for a crew-wide item like fish_finder).
+## reason is empty on success.
+signal purchase_resolved(requester_peer_id: int, item_id: StringName, target_peer_id: int, success: bool, reason: StringName)

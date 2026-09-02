@@ -21,6 +21,7 @@ extends Node
 ## back to shore between rounds, per direction 2026-08-30 (previously the
 ## livewell carried unsold fish from round 1 into round 2). The quota
 ## pass/fail check still only happens once both rounds of a day are banked.
+## total_money_earned IS the Per-Run Shop's shared pot -- see try_spend_from_pot.
 
 signal round_started(round_number: int, day_number: int, duration_seconds: float)
 signal round_ended(round_number: int, day_number: int)
@@ -28,6 +29,13 @@ signal round_time_synced(seconds_remaining: float)
 signal round_sold(round_number: int, day_number: int, earned: int, total_money: int)
 signal day_summary(day_number: int, earned: int, total_money: int, quota: int, passed: bool)
 signal run_over(final_day: int, final_money: int)
+
+## Emitted whenever the shared pot changes for a reason OTHER than the
+## round/day broadcasts above (a shop purchase, or the debug money cheat)
+## -- those already carry the new total themselves. GDD Per-Run Shop /
+## Economy: ShopDisplay listens to refresh prices/afford-checks live as
+## the crew spends, RoundHud listens to keep its money readout current.
+signal pot_changed(new_total: int)
 
 const ROUND_DURATION_SECONDS: float = 300.0  ## GDD: 5 min boat round
 const ROUNDS_PER_DAY: int = 2
@@ -43,6 +51,10 @@ var day_number: int = 1
 var round_number: int = 1  ## 1 or 2, within the current day
 var total_money_earned: int = 0  ## cumulative across the whole run, never resets mid-run
 var current_quota: int = 0
+
+## GDD Boat Upgrade: Fish Finder -- crew-wide (unlike everything else the
+## shop sells, which is per-player PlayerStats), so it lives here instead.
+var has_fish_finder: bool = false
 
 var _time_remaining: float = 0.0
 var _round_active: bool = false  ## host-only: is the round timer actually ticking
@@ -65,6 +77,7 @@ func reset_for_new_run() -> void:
 	round_number = 1
 	total_money_earned = 0
 	current_quota = _compute_day1_quota()
+	has_fish_finder = false
 	_round_active = false
 	_day_earned_so_far = 0
 
@@ -93,6 +106,7 @@ func _notify_round_started(r: int, d: int, duration: float, quota: int, money: i
 
 func _end_round() -> void:
 	_notify_round_ended.rpc(round_number, day_number)
+	_expire_round_consumables()
 
 	# Sell whatever's in the livewell every round -- heading back to shore --
 	# and bank it immediately. The quota pass/fail check still only happens
@@ -206,6 +220,61 @@ func _sell_held_fish() -> int:
 	return earned
 
 
+# ── Per-Run Shop (GDD Per-Run Shop / Economy) ───────────────────────────────────
+## Host-authoritative purchases -- ShopCounter validates an item/price
+## against ShopCatalog, then spends here BEFORE applying any stat effect,
+## so a failed spend can never leave an effect applied with nothing paid.
+
+## Host-only. Deducts amount from the shared pot -- false (no mutation, no
+## broadcast) if the pot can't cover it. This is the one place in the
+## codebase where a client-side desync would actually corrupt run state
+## rather than just look wrong, so the deduction only ever happens here,
+## never speculatively on a requesting client.
+func try_spend_from_pot(amount: int) -> bool:
+	if not multiplayer.is_server():
+		return false
+	if amount <= 0 or total_money_earned < amount:
+		return false
+	total_money_earned -= amount
+	_notify_pot_changed.rpc(total_money_earned)
+	return true
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_pot_changed(new_total: int) -> void:
+	total_money_earned = new_total
+	pot_changed.emit(new_total)
+
+
+## Host-only. GDD Boat Upgrade: Fish Finder is crew-wide, unlike everything
+## else the shop sells -- caller (ShopCounter) has already spent the price
+## via try_spend_from_pot before calling this.
+func set_fish_finder_purchased() -> void:
+	if not multiplayer.is_server():
+		return
+	has_fish_finder = true
+	_notify_fish_finder_purchased.rpc()
+
+
+@rpc("authority", "call_local", "reliable")
+func _notify_fish_finder_purchased() -> void:
+	has_fish_finder = true
+
+
+## GDD Per-Run Shop: "Bait -- fish bite faster for one round," consumable.
+## Ticks down whoever has some active by one round at round end, broadcasts
+## their updated stats the same way a purchase would so every peer's own
+## mirror stays correct.
+func _expire_round_consumables() -> void:
+	if not multiplayer.is_server():
+		return
+	for player in NetworkManager.spawned_players.values():
+		var p := player as Player
+		if p.stats.bait_rounds_remaining > 0:
+			p.stats.bait_rounds_remaining -= 1
+			NetworkManager.broadcast_player_stats(p.peer_id, p.stats)
+
+
 # ── Debug console (testing only) ────────────────────────────────────────────────
 ## Fast-forwarding for playtests -- e.g. the Big Fish Event only triggers in
 ## the last ~90s of the day's second round (BigFishEventManager), otherwise
@@ -216,6 +285,16 @@ func debug_skip_round() -> void:
 	if not multiplayer.is_server() or not _round_active:
 		return
 	_time_remaining = 0.01
+
+
+## No _round_active gate (unlike the time cheats) -- the pot exists in the
+## lobby between rounds too, which is exactly where the shop lives and
+## where this is actually useful for testing it.
+func debug_add_money(amount: int) -> void:
+	if not multiplayer.is_server():
+		return
+	total_money_earned += amount
+	_notify_pot_changed.rpc(total_money_earned)
 
 
 ## Also broadcasts the new time so every peer's HUD countdown -- which

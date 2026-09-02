@@ -453,3 +453,25 @@ func _register_spawned_player(peer_id: int, player: Player) -> void:
 
 	if peer_id == multiplayer.get_unique_id():
 		spawned_local_player.emit(player)
+
+
+# ── Player stats sync (GDD Per-Run Shop) ────────────────────────────────────────
+## PlayerStats starts identically default-valued on every peer with no sync
+## needed (see Player.stats' own doc comment) -- but a purchase or a
+## round's-end consumable expiry DOES need to reach every peer's own
+## mirror of that Player, not just the host's. Whole-resource replace, not
+## per-field: stats change rarely (a purchase, a round boundary) compared
+## to how often other things in this codebase sync, so simplicity wins
+## over the bandwidth a field-level diff would save.
+
+func broadcast_player_stats(peer_id: int, stats: PlayerStats) -> void:
+	if not multiplayer.is_server():
+		return
+	_apply_player_stats.rpc(peer_id, stats)
+
+
+@rpc("authority", "call_local", "reliable")
+func _apply_player_stats(peer_id: int, stats: PlayerStats) -> void:
+	var player: Player = spawned_players.get(peer_id)
+	if player:
+		player.stats = stats

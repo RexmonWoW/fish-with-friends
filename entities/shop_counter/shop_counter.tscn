@@ -1,0 +1,26 @@
+[gd_scene format=3 uid="uid://shopcounter_placeholder"]
+
+[ext_resource type="Script" path="res://entities/shop_counter/shop_counter.gd" id="1_shopscript"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_shopcounter"]
+size = Vector3(2.0, 1.0, 0.8)
+
+[sub_resource type="StandardMaterial3D" id="Mat_shopcounter"]
+albedo_color = Color(0.45, 0.3, 0.15, 1.0)
+
+[sub_resource type="BoxShape3D" id="Shape_interaction"]
+size = Vector3(3.0, 1.5, 2.5)
+
+[node name="ShopCounter" type="Node3D"]
+script = ExtResource("1_shopscript")
+
+[node name="CounterVisual" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("BoxMesh_shopcounter")
+surface_material_override/0 = SubResource("Mat_shopcounter")
+
+[node name="InteractionZone" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+
+[node name="InteractionShape" type="CollisionShape3D" parent="InteractionZone"]
+shape = SubResource("Shape_interaction")

@@ -1,6 +1,5 @@
 [gd_scene format=3 uid="uid://dd606gmlukoqh"]
 
-[ext_resource type="PackedScene" uid="uid://bojv8eo5itoug" path="res://entities/player/player.tscn" id="1_playerscene"]
 [ext_resource type="PackedScene" path="res://scenes/menu/main_menu.tscn" id="2_mainmenu"]
 [ext_resource type="PackedScene" uid="uid://dam5dhwda0gsu" path="res://ui/cast_meter.tscn" id="3_castmeter"]
 [ext_resource type="PackedScene" path="res://ui/reel_minigame.tscn" id="4_reelminigame"]
@@ -12,40 +11,43 @@
 [ext_resource type="PackedScene" path="res://ui/big_fish_event_minigame.tscn" id="10_bigfishmini"]
 [ext_resource type="PackedScene" path="res://ui/debug_console.tscn" id="11_debugconsole"]
 [ext_resource type="PackedScene" path="res://ui/crosshair.tscn" id="12_crosshair"]
+[ext_resource type="PackedScene" path="res://ui/shop_display.tscn" id="13_shopdisplay"]
 
-[node name="GameRoot" type="Node"]
+[node name="GameRoot" type="Node" unique_id=1721289612]
 
-[node name="NetworkRoot" type="Node" parent="."]
+[node name="NetworkRoot" type="Node" parent="." unique_id=177502517]
 
-[node name="PlayerSpawner" type="MultiplayerSpawner" parent="NetworkRoot"]
-_spawnable_scenes = PackedStringArray("res://entities/player/player.tscn")
+[node name="PlayerSpawner" type="MultiplayerSpawner" parent="NetworkRoot" unique_id=721564823]
+_spawnable_scenes = PackedStringArray("uid://bojv8eo5itoug")
 spawn_path = NodePath("../Players")
 spawn_limit = 4
 
-[node name="Players" type="Node" parent="NetworkRoot"]
+[node name="Players" type="Node" parent="NetworkRoot" unique_id=886005605]
 
-[node name="World" type="Node" parent="NetworkRoot"]
+[node name="World" type="Node" parent="NetworkRoot" unique_id=1134859631]
 
-[node name="UILayer" type="CanvasLayer" parent="."]
+[node name="UILayer" type="CanvasLayer" parent="." unique_id=1370587515]
 
-[node name="MainMenu" parent="UILayer" instance=ExtResource("2_mainmenu")]
+[node name="MainMenu" parent="UILayer" unique_id=1658388464 instance=ExtResource("2_mainmenu")]
 
-[node name="CastMeter" parent="UILayer" instance=ExtResource("3_castmeter")]
+[node name="CastMeter" parent="UILayer" unique_id=1609298925 instance=ExtResource("3_castmeter")]
 
-[node name="ReelMinigame" parent="UILayer" instance=ExtResource("4_reelminigame")]
+[node name="ReelMinigame" parent="UILayer" unique_id=546043431 instance=ExtResource("4_reelminigame")]
 
-[node name="LivewellDisplay" parent="UILayer" instance=ExtResource("5_livewelldisplay")]
+[node name="LivewellDisplay" parent="UILayer" unique_id=58625875 instance=ExtResource("5_livewelldisplay")]
 
-[node name="TangleMinigame" parent="UILayer" instance=ExtResource("6_tanglemini")]
+[node name="TangleMinigame" parent="UILayer" unique_id=733419776 instance=ExtResource("6_tanglemini")]
 
-[node name="RoundHud" parent="UILayer" instance=ExtResource("7_roundhud")]
+[node name="RoundHud" parent="UILayer" unique_id=1296488284 instance=ExtResource("7_roundhud")]
 
-[node name="RunEndScreen" parent="UILayer" instance=ExtResource("8_runendscreen")]
+[node name="RunEndScreen" parent="UILayer" unique_id=973119881 instance=ExtResource("8_runendscreen")]
 
-[node name="CapsizeMinigame" parent="UILayer" instance=ExtResource("9_capsizemini")]
+[node name="CapsizeMinigame" parent="UILayer" unique_id=1769540113 instance=ExtResource("9_capsizemini")]
 
-[node name="BigFishEventMinigame" parent="UILayer" instance=ExtResource("10_bigfishmini")]
+[node name="BigFishEventMinigame" parent="UILayer" unique_id=195086894 instance=ExtResource("10_bigfishmini")]
 
-[node name="DebugConsole" parent="UILayer" instance=ExtResource("11_debugconsole")]
+[node name="DebugConsole" parent="UILayer" unique_id=113148778 instance=ExtResource("11_debugconsole")]
 
-[node name="Crosshair" parent="UILayer" instance=ExtResource("12_crosshair")]
+[node name="Crosshair" parent="UILayer" unique_id=821550873 instance=ExtResource("12_crosshair")]
+
+[node name="ShopDisplay" parent="UILayer" instance=ExtResource("13_shopdisplay")]

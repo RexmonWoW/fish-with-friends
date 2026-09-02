@@ -3,9 +3,10 @@ extends Node3D
 
 ## Bare-bones walkable pre-round space. NOT a Map -- no fishing happens
 ## here, so none of Map's contract (Livewell, Boat, water_surface) applies.
-## Just spawn points and a trigger to start the round. The real GDD lobby
-## (shop counter, mirror, trophy case, ready-up dock) is a future dispatch;
-## this only covers "walk around, then head out to fish."
+## Spawn points, a trigger to start the round, and the Per-Run Shop counter
+## (GDD Lobby/Per-Run Shop). Mirror/trophy case/ready-up dock are still a
+## future dispatch -- cosmetics don't exist yet, so a mirror has nothing to
+## show.
 
 @onready var spawn_points: Node3D = $PlayerSpawnPoints
 @onready var start_trigger: Area3D = $StartTrigger

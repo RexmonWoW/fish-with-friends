@@ -51,7 +51,7 @@ func _ready() -> void:
 	_input.set_anchors_preset(Control.PRESET_CENTER)
 	_input.position = -PANEL_SIZE / 2.0 + Vector2(16, 66)
 	_input.custom_minimum_size = Vector2(PANEL_SIZE.x - 32, 28)
-	_input.placeholder_text = "skip_round / skip_day / set_time <seconds>"
+	_input.placeholder_text = "skip_round / skip_day / set_time <seconds> / add_money <amount>"
 	_input.text_submitted.connect(_on_submitted)
 	add_child(_input)
 
@@ -97,6 +97,12 @@ func _run_command(command: String) -> void:
 				return
 			RunState.debug_set_time_remaining(float(parts[1]))
 			_log_line("Time remaining set to %ss." % parts[1])
+		"add_money":
+			if parts.size() < 2 or not parts[1].is_valid_int():
+				_log_line("usage: add_money <amount>")
+				return
+			RunState.debug_add_money(int(parts[1]))
+			_log_line("Added $%s to the shared pot." % parts[1])
 		_:
 			_log_line("Unknown command: %s" % parts[0])
 

@@ -27,6 +27,17 @@ extends Node
 ## Per-Run Shop upgrade would actually sell. Read fresh per bite sequence
 ## from the CASTER's own stats, not a shared const.
 
+## GDD Per-Run Shop / Boat Upgrade: "Bait -- fish bite faster for one
+## round" and "Fish finder -- fish spawn closer to the cast point, bite
+## faster... stacks with personal bait for maximum efficiency." Both boost
+## the effective starting search radius rather than being separate
+## mechanics -- multiplicative so they genuinely stack per GDD, applied
+## once at the top of _run_bite_sequence (neither can change mid-sequence:
+## bait only ticks at round boundaries, fish finder is a one-time boat
+## purchase).
+const BAIT_RADIUS_MULTIPLIER: float = 1.5
+const FISH_FINDER_RADIUS_MULTIPLIER: float = 1.4
+
 ## Assign res://entities/fish/fish.tscn in the inspector.
 @export var fish_scene: PackedScene
 
@@ -106,6 +117,12 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		return
 	var stats := caster.stats
 
+	var effective_call_radius_base := stats.bite_call_radius_base
+	if stats.bait_rounds_remaining > 0:
+		effective_call_radius_base *= BAIT_RADIUS_MULTIPLIER
+	if RunState.has_fish_finder:
+		effective_call_radius_base *= FISH_FINDER_RADIUS_MULTIPLIER
+
 	var my_sequence := _next_sequence_id
 	_next_sequence_id += 1
 	_sequence_id[caster_peer_id] = my_sequence
@@ -131,7 +148,7 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		var waited := 0.0
 		while call_result.is_empty():
 			var radius := minf(
-				stats.bite_call_radius_base + stats.bite_call_radius_growth_per_sec * waited,
+				effective_call_radius_base + stats.bite_call_radius_growth_per_sec * waited,
 				stats.bite_call_radius_max
 			)
 			call_result = spawner.try_call_for(caster_peer_id, endpoint, radius)

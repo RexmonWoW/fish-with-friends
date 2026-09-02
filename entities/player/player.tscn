@@ -4,19 +4,19 @@
 [ext_resource type="Script" uid="uid://g2ff6pqps6vj" path="res://entities/player/equipment_slot.gd" id="2_equipslot"]
 [ext_resource type="PackedScene" uid="uid://cm8opitxfwnp3" path="res://entities/rod/rod.tscn" id="3_sglur"]
 
+[sub_resource type="PhysicsMaterial" id="PhysMat_player_lowfriction"]
+friction = 0.05
+
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.4
 height = 1.8
-
-[sub_resource type="PhysicsMaterial" id="PhysMat_player_lowfriction"]
-friction = 0.05
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_playerbody"]
 radius = 0.4
 height = 1.8
 
 [sub_resource type="StandardMaterial3D" id="Mat_playerbody"]
-albedo_color = Color(0.6, 0.6, 0.6, 1.0)
+albedo_color = Color(0.6, 0.6, 0.6, 1)
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_player"]
 properties/0/path = NodePath(".:global_position")
@@ -33,8 +33,8 @@ properties/3/spawn = false
 properties/3/replication_mode = 1
 
 [node name="Player" type="RigidBody3D" unique_id=1813776746]
-physics_material_override = SubResource("PhysMat_player_lowfriction")
 mass = 70.0
+physics_material_override = SubResource("PhysMat_player_lowfriction")
 lock_rotation = true
 contact_monitor = true
 max_contacts_reported = 4
@@ -48,7 +48,7 @@ shape = SubResource("CapsuleShape3D_player")
 
 [node name="PlayerModel" type="Node3D" parent="BodyPivot" unique_id=437556236]
 
-[node name="BodyMesh" type="MeshInstance3D" parent="BodyPivot/PlayerModel"]
+[node name="BodyMesh" type="MeshInstance3D" parent="BodyPivot/PlayerModel" unique_id=1086687305]
 mesh = SubResource("CapsuleMesh_playerbody")
 surface_material_override/0 = SubResource("Mat_playerbody")
 
@@ -56,6 +56,7 @@ surface_material_override/0 = SubResource("Mat_playerbody")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0.3)
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=1471550640]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
 
 [node name="CameraPitch" type="Node3D" parent="CameraRig" unique_id=1413211368]
 

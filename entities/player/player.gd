@@ -11,12 +11,12 @@ extends RigidBody3D
 
 var peer_id: int = 0
 
-## Every number a Per-Run Shop upgrade would sell (cast range, reel/bite
-## tunables) -- see PlayerStats' own doc comment. Defaults on creation, no
-## RPC/sync needed yet: every peer independently creates the same default-
-## valued object for every player (identical to how Rod.max_cast_distance
-## used to be an identically-defaulted @export on every peer, just moved).
-## Will need real host-authoritative sync once purchases can change it.
+## Every number the Per-Run Shop sells (cast range, reel/bite tunables) --
+## see PlayerStats' own doc comment. Starts default-valued identically on
+## every peer; a purchase (ShopCounter, host-authoritative) broadcasts the
+## whole updated resource via NetworkManager.broadcast_player_stats so
+## every peer's own mirror of this Player stays correct, not just the
+## host's.
 var stats: PlayerStats = PlayerStats.new()
 
 ## True while swimming during a capsize (CapsizeManager -> enter_swim_physics/
