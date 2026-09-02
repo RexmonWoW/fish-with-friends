@@ -20,7 +20,7 @@ func _ready() -> void:
 	NetworkManager.spawned_local_player.connect(_on_local_player_spawned)
 	EventBus.cast_charge_started.connect(func(pid): print("cast_charge_started peer=", pid))
 	EventBus.cast_charge_updated.connect(func(power, pid): print("cast_charge_updated power=%.2f peer=%d" % [power, pid]))
-	EventBus.cast_landed.connect(func(endpoint, flight, pid): print("cast_landed endpoint=", endpoint, " flight=", flight, " peer=", pid))
+	EventBus.cast_landed.connect(func(endpoint, flight, pid, is_dead_cast): print("cast_landed endpoint=", endpoint, " flight=", flight, " peer=", pid, " is_dead_cast=", is_dead_cast))
 	EventBus.cast_failed.connect(func(reason, pid): print("cast_failed reason=", reason, " peer=", pid))
 
 	NetworkManager.host_lobby()

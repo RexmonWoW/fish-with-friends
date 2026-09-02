@@ -66,7 +66,7 @@ func _on_local_player_spawned(player: Player) -> void:
 	# ── Cast somewhere blind -- not aimed at any particular shadow -- and ──
 	# ── confirm it's not a dead cast even so (growing call radius). ──
 	var endpoint := Vector3(5.0, -0.5, 5.0)
-	rod._cast_landed(endpoint, 0.01)
+	rod._cast_landed(endpoint, 0.01, false)
 
 	var opened_wait := 0.0
 	while _hook_windows_opened < 1 and opened_wait < 12.0:

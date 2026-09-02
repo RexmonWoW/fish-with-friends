@@ -79,7 +79,7 @@ func _on_local_player_spawned(player: Player) -> void:
 	# own flight-tween callback would independently overwrite rod.state
 	# later (on some later frame, unsynced with the rest of this test) and
 	# pollute the capsize check below.
-	bite_mgr._on_cast_landed(Vector3(5.0, -0.5, 5.0), 0.01, 1)
+	bite_mgr._on_cast_landed(Vector3(5.0, -0.5, 5.0), 0.01, 1, false)
 	rod.state = Rod.CastState.WAITING_BITE
 	if not bite_mgr._pending.has(1):
 		print("FAIL: test setup problem -- bite wasn't scheduled")

@@ -48,8 +48,8 @@ func _on_local_player_spawned(player: Player) -> void:
 	# Land both at the same point -- guarantees their lines cross (same
 	# technique as line_tangle_test.gd).
 	var shared_endpoint := Vector3(0.0, 0.0, -15.0)
-	rod1._cast_landed(shared_endpoint, 0.5)
-	rod2._cast_landed(shared_endpoint, 0.5)
+	rod1._cast_landed(shared_endpoint, 0.5, false)
+	rod2._cast_landed(shared_endpoint, 0.5, false)
 
 	var waited := 0.0
 	while not _tangled and waited < 3.0:

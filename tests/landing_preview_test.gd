@@ -12,7 +12,7 @@ extends Node
 
 var _real_landed: bool = false
 var _real_landed_pos: Vector3 = Vector3.ZERO
-var _real_failed: bool = false
+var _real_is_dead_cast: bool = false
 
 
 func _ready() -> void:
@@ -24,7 +24,6 @@ func _ready() -> void:
 	await get_tree().process_frame
 
 	EventBus.cast_landed.connect(_on_cast_landed)
-	EventBus.cast_failed.connect(_on_cast_failed)
 
 	NetworkManager.spawned_local_player.connect(_on_local_player_spawned)
 	NetworkManager.host_lobby()
@@ -102,8 +101,12 @@ func _on_local_player_spawned(player: Player) -> void:
 	# ── Invalid case: aim at the boat deck, not water (same trick ──
 	# ── cast_reject_softlock_test uses -- power 0.1 -> min_cast_distance ──
 	# ── dominates, short cast lands on the deck instead of real water). ──
+	# GDD Casting: this is no longer a rejection -- it's a dead cast that
+	# lands and lies there, so the preview reads it as "blocked" the same
+	# way it reads any other obstructed path (via the shared sweep), not by
+	# watching for a cast_failed that no longer fires for this case.
 	_real_landed = false
-	_real_failed = false
+	_real_is_dead_cast = false
 	player.camera_rig.rotation.y = PI
 	await get_tree().process_frame  # let the transform propagate
 
@@ -119,15 +122,37 @@ func _on_local_player_spawned(player: Player) -> void:
 		print("FAIL: preview shown as valid while aimed at the deck, not water")
 		get_tree().quit(1)
 		return
+	var blocked_preview_pos: Vector3 = rod._landing_preview.global_position
 	print("Invalid preview correctly shown blocked when aimed at the deck.")
 
 	rod.release_cast()
 	await get_tree().process_frame
-	if not _real_failed:
-		print("FAIL: test setup problem -- the real cast at the deck didn't actually fail")
+	if not _real_landed or not _real_is_dead_cast:
+		print("FAIL: test setup problem -- the real cast at the deck wasn't a dead cast (landed=%s is_dead_cast=%s)" %
+			[_real_landed, _real_is_dead_cast])
 		get_tree().quit(1)
 		return
-	print("Real cast at the same aim failed too, matching the preview's blocked state.")
+	print("Real cast at the same aim landed as a dead cast too, matching the preview's blocked state.")
+
+	var blocked_expected := _real_landed_pos + Vector3(0.0, Rod.LANDING_PREVIEW_Y_OFFSET, 0.0)
+	if blocked_preview_pos.distance_to(blocked_expected) > 0.01:
+		print("FAIL: blocked preview position %s didn't match the real dead cast's landing point %s" %
+			[blocked_preview_pos, _real_landed_pos])
+		get_tree().quit(1)
+		return
+	print("Blocked preview position matched the real dead cast's landing point exactly.")
+
+	# Let the dead cast's own flight finish before cancelling, same reason
+	# as the valid case above -- request_cancel_cast() is a no-op outside
+	# CHARGING/WAITING_BITE.
+	var dead_flight_waited := 0.0
+	while rod.state == Rod.CastState.ANIMATING and dead_flight_waited < 2.0:
+		await get_tree().process_frame
+		dead_flight_waited += get_process_delta_time()
+	if rod.state != Rod.CastState.WAITING_BITE:
+		print("FAIL: test setup problem -- rod never reached WAITING_BITE after the dead cast (state=%s)" % rod.state)
+		get_tree().quit(1)
+		return
 
 	# ── Hides once charging ends. ──
 	rod.request_cancel_cast()
@@ -143,10 +168,7 @@ func _on_local_player_spawned(player: Player) -> void:
 	get_tree().quit()
 
 
-func _on_cast_landed(endpoint: Vector3, _flight: float, _pid: int) -> void:
+func _on_cast_landed(endpoint: Vector3, _flight: float, _pid: int, is_dead_cast: bool) -> void:
 	_real_landed = true
 	_real_landed_pos = endpoint
-
-
-func _on_cast_failed(_reason: StringName, _pid: int) -> void:
-	_real_failed = true
+	_real_is_dead_cast = is_dead_cast

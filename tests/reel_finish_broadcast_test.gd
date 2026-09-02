@@ -52,7 +52,7 @@ func _on_local_player_spawned(_player: Player) -> void:
 	var rod2: Rod = (NetworkManager.spawned_players[2] as Player).equipment_slot.equipped_item as Rod
 	var lure2: Node3D = rod2.get_node("LureAnimator")
 
-	rod2._cast_landed(Vector3(0.0, 0.0, -15.0), 0.5)
+	rod2._cast_landed(Vector3(0.0, 0.0, -15.0), 0.5, false)
 	# Real elapsed time, not just frame count -- the arc tween runs on wall-clock time.
 	await get_tree().create_timer(1.0).timeout
 

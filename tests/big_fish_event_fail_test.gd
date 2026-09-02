@@ -63,7 +63,7 @@ func _on_local_player_spawned(player: Player) -> void:
 	# ── Join radius: a cast far from the spot shouldn't join. ──
 	mgr._start_ready_check()
 	var far_point: Vector3 = mgr._target_spot + Vector3(50.0, 0.0, 0.0)
-	rod._cast_landed(far_point, 0.5)
+	rod._cast_landed(far_point, 0.5, false)
 	await get_tree().process_frame
 
 	if mgr._participants.has(1):
@@ -94,7 +94,7 @@ func _on_local_player_spawned(player: Player) -> void:
 	await get_tree().process_frame
 
 	mgr._start_ready_check()
-	rod._cast_landed(mgr._target_spot, 0.5)
+	rod._cast_landed(mgr._target_spot, 0.5, false)
 	await get_tree().process_frame
 	if not mgr._participants.has(1):
 		print("FAIL: test setup problem -- didn't join for the fail scenario")

@@ -19,7 +19,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	EventBus.cast_landed.connect(func(_ep, _flight, _pid): _last_result = "landed")
+	EventBus.cast_landed.connect(func(_ep, _flight, _pid, is_dead_cast): _last_result = "dead" if is_dead_cast else "landed")
 	EventBus.cast_failed.connect(func(reason, _pid): _last_result = "failed:" + str(reason))
 
 	NetworkManager.spawned_local_player.connect(_on_local_player_spawned)

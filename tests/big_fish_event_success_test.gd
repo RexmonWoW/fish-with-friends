@@ -88,7 +88,7 @@ func _on_local_player_spawned(player: Player) -> void:
 
 	# A cast landing right on the spot should join instead of scheduling a
 	# normal bite.
-	rod._cast_landed(mgr._target_spot, 0.5)
+	rod._cast_landed(mgr._target_spot, 0.5, false)
 	await get_tree().process_frame
 
 	if not _joined or not mgr._participants.has(1):

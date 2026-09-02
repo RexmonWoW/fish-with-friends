@@ -64,8 +64,8 @@ func _on_local_player_spawned(player: Player) -> void:
 	var shared_endpoint := Vector3(0.0, 0.0, -15.0)
 	print("Landing rod1 (tip ", tip1, ") and rod2 (tip ", tip2, ") both at ", shared_endpoint)
 
-	rod1._cast_landed(shared_endpoint, 0.5)
-	rod2._cast_landed(shared_endpoint, 0.5)
+	rod1._cast_landed(shared_endpoint, 0.5, false)
+	rod2._cast_landed(shared_endpoint, 0.5, false)
 
 	# Let the arcs finish (0.5s) and physics detect the overlap.
 	var waited := 0.0

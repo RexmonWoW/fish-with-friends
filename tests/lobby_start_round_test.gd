@@ -32,7 +32,7 @@ func _ready() -> void:
 	# Persistent connections, not per-call connect/disconnect -- that pattern
 	# has already bitten this session once (cast_angle_smoke_test) with
 	# signals silently not firing for reasons never fully pinned down.
-	EventBus.cast_landed.connect(func(ep, _flight, _pid): _last_result = "landed"; _last_endpoint = ep)
+	EventBus.cast_landed.connect(func(ep, _flight, _pid, is_dead_cast): _last_result = "dead" if is_dead_cast else "landed"; _last_endpoint = ep)
 	EventBus.cast_failed.connect(func(reason, _pid): _last_result = "failed:" + str(reason))
 
 	NetworkManager.spawned_local_player.connect(_on_local_player_spawned)
@@ -91,6 +91,15 @@ func _on_local_player_spawned(player: Player) -> void:
 		return
 
 	var other_rod: Rod = other_player.equipment_slot.equipped_item as Rod
+
+	# Cast collision now sweeps the whole path from the rod's OWN tip, not
+	# just the flat endpoint -- move the player well clear of the boat first
+	# (default spawn is ON it) so that sweep can't clip the hull on its way
+	# out and confound this test, which is only about the map-freshness
+	# regression, not collision. Same XZ as the synthetic cam_origin below,
+	# so the whole swept arc stays over open water throughout.
+	other_player.global_position = Vector3(5.0, 0.5, 5.0)
+	await get_tree().process_frame
 
 	# Aim height (5) well above the water -- if this were still using the
 	# old permissive/no-map fallback, the endpoint's Y would come back near
