@@ -65,6 +65,7 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 - **Dead cast:** a bobber that ends up anywhere that isn't water just lands there and lies there — nothing will ever bite it. Cancel or recast to reel it back. No penalty beyond the wasted seconds. It does not bounce; it plops where it hit (Minecraft-style).
 - **Casting into a player = bonk.** Light knockback + thunk, bobber drops at their feet as a dead cast. No damage, pure comedy.
 - No silent rejections — every cast visibly goes somewhere.
+- **Default cast range is short — 40% of the old max.** Deliberate: paired with spatial rarity, early runs can only reach the common shallows, and rod range upgrades are what open up the deep water where the money is. Range is the game's main progression axis, not a stat tweak.
 - **Cancelling:** while charging, right click cancels (left is the charge button). Once the line is out, either click reels it back in — except left click during an open hook-set window, which sets the hook.
 - Casts close automatically at round end — no line left out, no accidental fishing in the lobby.
 
@@ -158,11 +159,13 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 ---
 
 ## Economy
-- Haul split equally into personal wallets at end of day
-- Personal wallet buys per-run upgrades and consumables
-- Shared boat fund (everyone chips in voluntarily) buys fish finder only
-- Rod upgrades are per-run only
-- Cosmetics are permanent account unlocks
+Two currencies, deliberately separated: one the crew shares and spends this run, one you keep forever and can only spend on looking good.
+
+- **Run money — one shared pot.** Every catch pays into it, everyone spends from it. No personal wallets; it's a co-op game and a shared pot forces the crew to actually talk about what to buy. Resets each run.
+- The pot buys everything that affects the run: rod upgrades, consumables, boat upgrades.
+- Quota is **paid out of the pot** at day's end, not just checked against it — only the surplus carries forward. This is what keeps money scarce: every purchase is a real bet against tomorrow's quota, and one huge haul can't buy several free days.
+- Rod upgrades are per-run only.
+- **Meta currency — persistent, per-player, cosmetics only.** Carries across runs, buys clothes/skins/appearance. Never touches gameplay. Requires save persistence (see Run Saves), so it lands with cosmetics, not before.
 
 ---
 
@@ -289,6 +292,24 @@ All maps are modular — fixed core, procedural surroundings.
 
 ---
 
+## Game Modes
+Not two separate games — one game with the fail state switched off. Same fishing, same shop, same upgrades, same boat; the mode is a flag on the save.
+
+- **Quota run** (default): the escalating-quota roguelite. Miss quota, run over.
+- **Casual**: no quota, no fail state. Fish, upgrade, keep going. For playing with people who just want to hang out on the boat.
+
+---
+
+## Run Saves
+Runs persist so a crew can stop and pick it back up, and so people can drop in and out of an ongoing run without losing their progress.
+
+- The **host** owns the save. Creating a lobby means picking one of 4 save slots (or starting fresh). The run only exists when that host is around — same shape as Valheim/Terraria co-op hosting.
+- A slot holds **crew state** (day, quota, shared pot, boat upgrades, mode flag) plus **per-player state keyed by Steam ID** (their rod upgrades, since those are per-run).
+- A player who isn't present doesn't block anything — the run continues without them, and their upgrades sit in the slot waiting for them to come back.
+- Saves are **versioned, not migrated.** During active development, a save from an older build is discarded with a clear message rather than being upgraded. Writing migration code for a game whose data changes weekly is a time sink.
+
+---
+
 ## MVP Build Order
 1. GodotSteam install + Steam connection + export templates
 2. GitHub setup across two machines different OS
@@ -324,7 +345,6 @@ Live status for this list lives in PROGRESS.md, not here — this list is the pl
 - Swimming as a normal ability, not just a capsize state
 - Weeds you can tangle your line in
 - Having to physically untangle your line after casting somewhere it can't land
-- **Shorter default cast range**, with rod upgrades extending it later — pairs with spatial rarity to make range a real progression axis: early runs can only reach the common shallows, upgrades open up the deep water
 - Wind on the boat that can shove you overboard
 - Wet floors that make the deck slippery
 - Things stuck to the bottom of the boat — needs scuba gear or a swim to fix
