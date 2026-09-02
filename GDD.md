@@ -170,16 +170,29 @@ Two currencies, deliberately separated: one the crew shares and spends this run,
 ---
 
 ## Per-Run Shop
+Bought at the lobby counter between days, paid out of the **shared pot**.
+
+**Upgrades are bought for a specific player, not the whole crew.** Four people, one pot, one range upgrade — who gets it? That negotiation is the point; a shared pot buying personal gear is what makes the crew actually talk. Boat upgrades are the exception and apply to everyone. Rod upgrades last the run only.
+
+### v1 — build these
+| Item | Who | Effect |
+|---|---|---|
+| **Cast range** (3 tiers) | Player | 40% → 60% → 80% → 100% of full range. The headline upgrade: each tier literally opens water you couldn't reach, and the valuable fish live out there (see spatial rarity). This is the run's main progression ladder. |
+| Line strength | Player | Missed QTE shrinks the zone less |
+| Reel upgrade | Player | Bigger catch zone |
+| Bait | Player, consumable | Fish bite faster for one round |
+| Fish finder | Boat, crew-wide | Fish spawn closer to the cast point, bite faster (see Boat Upgrade) |
+
+### Parked until their maps/hazards exist
 | Item | Effect |
 |---|---|
-| Bait | Fish bite faster (personal) |
-| Line strength | Miss QTE = less zone shrink |
-| Reel upgrade | Bigger catch zone |
 | Weighted lure | Bar moves faster |
 | Mosquito spray | Immunity for one round |
 | Hand warmers | Slower cold meter |
 | Seagull/pelican food | Distracts bird |
 | Lightning rod | Redirects lightning strikes |
+
+Prices are placeholders — tune so day 1's surplus buys roughly one thing, not three.
 
 ---
 
