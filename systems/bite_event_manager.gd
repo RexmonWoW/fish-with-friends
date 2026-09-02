@@ -75,7 +75,14 @@ func _ready() -> void:
 
 # ── Internal ───────────────────────────────────────────────────────────────────
 
-func _on_cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int) -> void:
+func _on_cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int, is_dead_cast: bool) -> void:
+	# GDD Casting: a dead cast (didn't land on real water) just lies there --
+	# nothing will ever bite it. Its ready-check spot is always real water
+	# well clear of the boat anyway (see BigFishEventManager._start_ready_
+	# check), so a dead cast's endpoint could never coincide with it either.
+	if is_dead_cast:
+		return
+
 	# A cast landing on an active Big Fish Event's ready-check spot joins
 	# that instead of becoming a normal bite -- checked first (not
 	# "schedule then cancel") so this doesn't depend on which system's

@@ -135,7 +135,7 @@ func _on_charge_updated(power: float, caster_peer_id: int) -> void:
 	_set_fill(power)
 
 
-func _on_cast_ended_landed(_endpoint: Vector3, _flight_seconds: float, caster_peer_id: int) -> void:
+func _on_cast_ended_landed(_endpoint: Vector3, _flight_seconds: float, caster_peer_id: int, _is_dead_cast: bool) -> void:
 	if caster_peer_id != multiplayer.get_unique_id():
 		return
 	_bar_container.hide()

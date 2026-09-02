@@ -94,20 +94,28 @@ func play_arc(start_pos: Vector3, end_pos: Vector3, duration: float) -> void:
 
 	global_position = start_pos
 
-	var horizontal_dist := Vector2(end_pos.x - start_pos.x, end_pos.z - start_pos.z).length()
-	var apex_height: float = horizontal_dist * APEX_FRACTION
-
 	_active_tween = create_tween()
 	# Drive progress 0 → 1 via a single interpolated value, sampled each frame.
 	_active_tween.tween_method(
 		func(t: float) -> void:
-			# Lerp XZ linearly, Y parabolically (apex at t = 0.5).
-			var pos := start_pos.lerp(end_pos, t)
-			pos.y += apex_height * 4.0 * t * (1.0 - t)  # standard parabola through 0,apex,0
-			global_position = pos,
+			global_position = position_at(start_pos, end_pos, t),
 		0.0, 1.0, duration
 	)
 	_active_tween.tween_callback(_on_arc_complete)
+
+
+## The exact parabola play_arc draws, exposed so Rod's arc-collision sweep
+## (GDD Casting: "the whole flight path is checked, not just the endpoint")
+## can step along the SAME curve the bobber will actually be seen following
+## -- a sweep using different math than the visual arc could hit (or miss)
+## something the player never actually saw the bobber cross.
+static func position_at(start_pos: Vector3, end_pos: Vector3, t: float) -> Vector3:
+	var horizontal_dist := Vector2(end_pos.x - start_pos.x, end_pos.z - start_pos.z).length()
+	var apex_height: float = horizontal_dist * APEX_FRACTION
+	# Lerp XZ linearly, Y parabolically (apex at t = 0.5).
+	var pos := start_pos.lerp(end_pos, t)
+	pos.y += apex_height * 4.0 * t * (1.0 - t)  # standard parabola through 0,apex,0
+	return pos
 
 
 func _on_arc_complete() -> void:

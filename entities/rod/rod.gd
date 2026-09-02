@@ -12,8 +12,32 @@ enum CastState { IDLE, CHARGING, ANIMATING, WAITING_BITE, REELING, BIG_FISH_EVEN
 ## map geometry to raycast against locally).
 const LANDING_PREVIEW_RADIUS: float = 0.5
 const LANDING_PREVIEW_Y_OFFSET: float = 0.02  ## just above the surface, avoids z-fighting
-const LANDING_PREVIEW_VALID_COLOR: Color = Color(0.2, 0.9, 1.0, 0.85)
+## Playtest: blue-on-blue water made a valid preview nearly invisible --
+## green reads clearly against water at any depth/lighting. Invalid stays
+## red, unchanged.
+const LANDING_PREVIEW_VALID_COLOR: Color = Color(0.2, 0.95, 0.3, 0.85)
 const LANDING_PREVIEW_INVALID_COLOR: Color = Color(0.95, 0.15, 0.15, 0.85)
+
+## GDD Casting: cast collision. The old flat 0.5s "lure flight" placeholder,
+## now scaled by how much of the swept arc a cast actually travels before
+## hitting something (see BASE_FLIGHT_SECONDS's use in _validate_and_land_cast).
+const BASE_FLIGHT_SECONDS: float = 0.5
+## Stepped raycasts along the parabola -- "stepped raycasts are fine" per
+## direction. Each segment is a real raycast (checks the whole line, not
+## just its endpoints), so a fixed step count isn't actually blind to thin
+## geometry the way discrete point-sampling would be -- but a long/fast
+## cast's segments chording across a lot of curvature can still diverge
+## from the TRUE parabola enough to miss something the real arc would have
+## clipped. Scales the step count so no segment spans more than roughly
+## this much world-space distance regardless of how far the cast reaches.
+const ARC_SWEEP_STEPS: int = 24
+const ARC_SWEEP_MAX_STEP_LENGTH: float = 0.2
+
+## GDD: "casting into a teammate = bonk... light knockback." Mass 70
+## (Player.tscn), so this gives roughly a 1.4 m/s outward / 1.1 m/s upward
+## nudge -- deliberately much lighter than the capsize toss (400/450).
+const BONK_HORIZONTAL_IMPULSE: float = 100.0
+const BONK_VERTICAL_IMPULSE: float = 80.0
 
 var state: CastState = CastState.IDLE
 var charge_start_time: float = 0.0
@@ -167,11 +191,10 @@ func release_cast() -> void:
 	# Optimistic local state -- set BEFORE the RPC, not after. When the
 	# caster IS the host (solo/host play), "any_peer, call_local" means
 	# _request_cast's local invocation runs SYNCHRONOUSLY inline here,
-	# including a rejection's _cast_failed.rpc() call resetting state back
-	# to IDLE -- so setting ANIMATING after the call would silently clobber
-	# that real result back to ANIMATING forever (a soft lock: stuck
-	# "casting," can't move, can't start a new charge). Setting it first lets
-	# whatever the call actually resolves to be the final value.
+	# including _cast_landed.rpc()'s own ANIMATING assignment -- harmless
+	# and redundant with this one now that every real cast always lands
+	# somewhere (GDD: no more silent rejections), but still correct either
+	# way: whatever the call actually resolves to is the final value.
 	state = CastState.ANIMATING
 	_request_cast.rpc(cam_origin, cam_forward, current_power)
 
@@ -302,18 +325,44 @@ func _request_cast(cam_origin: Vector3, cam_forward: Vector3, power: float) -> v
 ## can't be kept correct for peers other than whichever one is "local" to
 ## the machine doing the refreshing -- see PROGRESS.md.
 
+## GDD Casting: cast collision. This replaces the old invisible
+## "invalid_water" rejection -- every path below now ends in the cast
+## visibly landing somewhere, never silently failing. Sweeps the same
+## parabola Bobber.play_arc will actually draw (stepped raycasts, "fine"
+## per direction) instead of only probing the flat endpoint, and reacts to
+## whatever it hits first. No bounce physics this time -- a non-water hit
+## just plops and lies there as a dead cast, Minecraft-style.
 func _validate_and_land_cast(cam_origin: Vector3, cam_forward: Vector3, power: float) -> void:
 	var aim_point := _compute_aim_point(cam_origin, cam_forward, power)
+	var map := NetworkManager.get_current_map()
+	var rod_tip := get_node_or_null("RodTip") as Marker3D
+	var start_pos := rod_tip.global_position if rod_tip else global_position
 
-	# Snap to the actual water surface height, not the aim point's height --
-	# otherwise the lure/bobber ends up floating at eye level instead of
-	# sitting on the water.
-	var water_point = WaterValidator.find_water_point(aim_point, NetworkManager.get_current_map())
-	if water_point == null:
-		_cast_failed.rpc(&"invalid_water")
-		return
+	var hit := _sweep_arc_for_collision(start_pos, aim_point, map)
+	var flight_seconds: float = BASE_FLIGHT_SECONDS * (hit["t"] as float)
 
-	_cast_landed.rpc(water_point, 0.5)  # 0.5 s lure flight — placeholder
+	match hit["type"]:
+		"water":
+			_cast_landed.rpc(hit["position"], flight_seconds, false)
+		"player":
+			var victim: Player = hit["player"]
+			var drop_pos: Vector3 = victim.global_position  # "drops at their feet"
+			_cast_landed.rpc(drop_pos, flight_seconds, true)
+			_resolve_bonk_after_flight(flight_seconds, victim)
+		"solid":
+			# GDD: a dead cast just plops and lies there -- no bounce.
+			_cast_landed.rpc(hit["position"], flight_seconds, true)
+		_:  # "none" -- the swept arc found nothing at all along its whole path
+			# Safety net, same two-step fallback the old endpoint-only check
+			# used: try water first, then any real surface, before finally
+			# giving up and landing at the raw (unsnapped) aim point.
+			var water_point: Variant = WaterValidator.find_water_point(aim_point, map)
+			if water_point != null:
+				_cast_landed.rpc(water_point, BASE_FLIGHT_SECONDS, false)
+			else:
+				var ground: Variant = _find_any_surface_below(aim_point, map)
+				var drop_pos: Vector3 = (ground as Vector3) if ground != null else aim_point
+				_cast_landed.rpc(drop_pos, BASE_FLIGHT_SECONDS, true)
 
 
 ## Aim direction + power -> the flat aim point (camera height, not yet
@@ -338,6 +387,90 @@ func _compute_aim_point(cam_origin: Vector3, cam_forward: Vector3, power: float)
 	return Vector3(cam_origin.x, cam_origin.y, cam_origin.z) + direction * distance
 
 
+## Steps along the same parabola Bobber.position_at draws (stepped
+## raycasts between consecutive samples) and returns the first thing hit:
+## {"type": "water"|"player"|"solid"|"none", "position": Vector3, "t": float,
+## "player": Player (only for "player")}. t is how far along the arc (0..1)
+## the hit happened, used to scale flight_seconds so a cast cut short
+## doesn't take as long to "land" as a full one would.
+##
+## Deliberately does its OWN raw raycasts rather than reusing
+## WaterValidator.find_water_point -- that helper re-casts PAST any Player
+## body it hits (a teammate standing at the landing spot shouldn't block a
+## water landing), which is correct for snapping a water height but would
+## make a player-hit here impossible to ever detect, and bonks could never
+## trigger. The only exclusion here is the CASTER's own body, so the rod
+## tip's first step doesn't immediately "hit" whoever's casting.
+##
+## Shared by the host's real validation and the client-side landing preview
+## (_update_landing_preview) -- same reasoning as _compute_aim_point, so the
+## preview can never disagree with what a real cast would actually hit.
+## Safe to call on any peer: read-only physics query, no state changes.
+func _sweep_arc_for_collision(start_pos: Vector3, end_pos: Vector3, map: Node3D) -> Dictionary:
+	if map == null:
+		# No real map to sweep against (shouldn't happen -- start_charge()
+		# already requires one) -- trust the flat endpoint like the old
+		# testing-only WaterValidator fallback did.
+		return {"type": "water", "position": end_pos, "t": 1.0}
+
+	var space_state := map.get_world_3d().direct_space_state
+	var caster: Player = NetworkManager.spawned_players.get(owner_peer_id)
+	var exclude: Array[RID] = []
+	if caster:
+		exclude.append(caster.get_rid())
+
+	# Rough arc length (straight-line + a fudge for the parabola's own bulge)
+	# rather than horizontal distance alone -- a steep, high-power cast's
+	# actual path is meaningfully longer than its flat XZ distance.
+	var rough_length := start_pos.distance_to(end_pos) * 1.3
+	var steps := maxi(ARC_SWEEP_STEPS, int(ceil(rough_length / ARC_SWEEP_MAX_STEP_LENGTH)))
+
+	var prev_pos := start_pos
+	for i in range(1, steps + 1):
+		var t := float(i) / float(steps)
+		var pos := Bobber.position_at(start_pos, end_pos, t)
+
+		var query := PhysicsRayQueryParameters3D.create(prev_pos, pos)
+		query.collide_with_areas = false
+		query.collide_with_bodies = true
+		query.exclude = exclude
+		var result := space_state.intersect_ray(query)
+		if not result.is_empty():
+			var collider := result.get("collider") as Node
+			if collider != null and collider.is_in_group("water_surface"):
+				return {"type": "water", "position": result.position, "t": t}
+			if collider is Player:
+				return {"type": "player", "position": result.position, "player": collider, "t": t}
+			return {"type": "solid", "position": result.position, "t": t}
+		prev_pos = pos
+
+	return {"type": "none", "position": end_pos, "t": 1.0}
+
+
+## GDD: "casting into a teammate = bonk... bobber drops at their feet as a
+## dead cast." Waits for the arc to actually visually reach the victim (the
+## flight_seconds already sent in _cast_landed) before applying anything, so
+## the knockback reads as the moment of impact rather than firing instantly
+## at cast time. No physics to simulate (unlike the failed bounce attempt)
+## -- the landing position is already final the instant the sweep found it,
+## this only ever handles the knockback half. Applied on the VICTIM's own
+## client (movement is client-authoritative per player), same pattern as
+## the capsize toss.
+func _resolve_bonk_after_flight(flight_seconds: float, victim: Player) -> void:
+	await get_tree().create_timer(flight_seconds).timeout
+	if not is_instance_valid(victim):
+		return
+
+	var away := victim.global_position - global_position
+	away.y = 0.0
+	if away.length_squared() < 0.01:
+		away = Vector3.FORWARD
+	away = away.normalized()
+	var impulse := away * BONK_HORIZONTAL_IMPULSE + Vector3.UP * BONK_VERTICAL_IMPULSE
+
+	_notify_bonk.rpc(victim.peer_id, impulse)
+
+
 # ── Landing preview (client-side only, GDD Casting) ────────────────────────────
 
 func _ensure_landing_preview() -> void:
@@ -359,9 +492,11 @@ func _ensure_landing_preview() -> void:
 
 
 ## Runs every frame while THIS rod's own local owner is charging (see the
-## owner gate at the top of _process). Reuses _compute_aim_point + the same
-## WaterValidator every real cast uses, so it can never disagree with where
-## release_cast() would actually land.
+## owner gate at the top of _process). Reuses _compute_aim_point AND the
+## same _sweep_arc_for_collision every real cast uses, so the preview can
+## never disagree with where release_cast() would actually land -- reads
+## blocked the instant the swept PATH hits something, not just when the
+## flat endpoint happens to be dry.
 func _update_landing_preview() -> void:
 	if player_camera == null:
 		return
@@ -371,18 +506,33 @@ func _update_landing_preview() -> void:
 	var cam_forward := -player_camera.global_transform.basis.z
 	var aim_point := _compute_aim_point(cam_origin, cam_forward, current_power)
 	var map := NetworkManager.get_current_map()
-	var water_point: Variant = WaterValidator.find_water_point(aim_point, map)
+	var rod_tip := get_node_or_null("RodTip") as Marker3D
+	var start_pos := rod_tip.global_position if rod_tip else global_position
 
-	if water_point != null:
-		_landing_preview.global_position = (water_point as Vector3) + Vector3(0.0, LANDING_PREVIEW_Y_OFFSET, 0.0)
+	var hit := _sweep_arc_for_collision(start_pos, aim_point, map)
+
+	if hit["type"] == "water":
+		_landing_preview.global_position = (hit["position"] as Vector3) + Vector3(0.0, LANDING_PREVIEW_Y_OFFSET, 0.0)
 		_landing_preview_material.albedo_color = LANDING_PREVIEW_VALID_COLOR
+	elif hit["type"] == "none":
+		# Swept arc found nothing at all -- same safety-net fallback the
+		# real cast uses: try water first, then any real surface, so a
+		# blocked marker still sits on real geometry instead of floating at
+		# eye height.
+		var water_point: Variant = WaterValidator.find_water_point(aim_point, map)
+		if water_point != null:
+			_landing_preview.global_position = (water_point as Vector3) + Vector3(0.0, LANDING_PREVIEW_Y_OFFSET, 0.0)
+			_landing_preview_material.albedo_color = LANDING_PREVIEW_VALID_COLOR
+		else:
+			var fallback: Variant = _find_any_surface_below(aim_point, map)
+			var shown_pos: Vector3 = (fallback as Vector3) if fallback != null else aim_point
+			_landing_preview.global_position = shown_pos + Vector3(0.0, LANDING_PREVIEW_Y_OFFSET, 0.0)
+			_landing_preview_material.albedo_color = LANDING_PREVIEW_INVALID_COLOR
 	else:
-		# Not water -- still show the blocked marker somewhere real instead
-		# of floating at eye height. Visual-only fallback ray (any solid),
-		# never used to decide the actual cast outcome -- that's step 2/3.
-		var fallback: Variant = _find_any_surface_below(aim_point, map)
-		var shown_pos: Vector3 = (fallback as Vector3) if fallback != null else aim_point
-		_landing_preview.global_position = shown_pos + Vector3(0.0, LANDING_PREVIEW_Y_OFFSET, 0.0)
+		# "player" or "solid" -- the path itself is obstructed, blocked
+		# right where the sweep actually hit, not at the (unreachable) aim
+		# point past it.
+		_landing_preview.global_position = (hit["position"] as Vector3) + Vector3(0.0, LANDING_PREVIEW_Y_OFFSET, 0.0)
 		_landing_preview_material.albedo_color = LANDING_PREVIEW_INVALID_COLOR
 
 	_landing_preview.visible = true
@@ -411,19 +561,24 @@ func _find_any_surface_below(pos: Vector3, map: Node3D) -> Variant:
 
 
 # ── RPC 2: Host → All clients, cast confirmed ─────────────────────────────────
+## No separate "cast rejected" RPC anymore -- GDD Casting: "no silent
+## rejections, every cast visibly goes somewhere." _validate_and_land_cast's
+## sweep always resolves to a real landing spot (water, a dead-cast plop, or
+## a bonk), even its last-resort "found nothing at all" fallback. The
+## EventBus cast_failed signal itself stays -- still used for an explicit
+## cancel (_notify_cast_cancelled below), just never for a rejection anymore.
 
 @rpc("authority", "call_local", "reliable")
-func _cast_landed(endpoint: Vector3, lure_flight_seconds: float) -> void:
+func _cast_landed(endpoint: Vector3, lure_flight_seconds: float, is_dead_cast: bool) -> void:
 	state = CastState.ANIMATING
-	EventBus.cast_landed.emit(endpoint, lure_flight_seconds, owner_peer_id)
+	EventBus.cast_landed.emit(endpoint, lure_flight_seconds, owner_peer_id, is_dead_cast)
 
 
-# ── RPC 3: Host → All clients, cast rejected ──────────────────────────────────
+# ── RPC 3: Host → All clients, cast bonked a player ───────────────────────────
 
 @rpc("authority", "call_local", "reliable")
-func _cast_failed(reason: StringName) -> void:
-	state = CastState.IDLE
-	EventBus.cast_failed.emit(reason, owner_peer_id)
+func _notify_bonk(hit_peer_id: int, impulse: Vector3) -> void:
+	EventBus.player_bonked.emit(hit_peer_id, impulse)
 
 
 # ── Big Fish Event (BigFishEventManager, host-only, calls this directly) ───────

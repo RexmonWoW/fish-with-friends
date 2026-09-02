@@ -58,6 +58,12 @@ func _ready() -> void:
 	# unstow every capsized player's rod, not just their own.
 	EventBus.capsize_started.connect(func(_required): _handle_swim_equipment(true))
 	EventBus.capsize_resolved.connect(func(): _handle_swim_equipment(false))
+	# Every Player instance on every peer receives this broadcast (not
+	# owner-gated), but only applies the impulse when it's BOTH this exact
+	# player AND the local machine's own body -- otherwise a peer with a
+	# mirrored copy of someone ELSE'S player (same peer_id match, wrong
+	# machine) would shove a body it doesn't actually control.
+	EventBus.player_bonked.connect(_on_player_bonked)
 
 
 ## Called by PlayerSpawner immediately after this node is added to the scene.
@@ -209,6 +215,19 @@ func enter_swim_physics() -> void:
 func apply_capsize_toss(impulse: Vector3) -> void:
 	_being_tossed = true
 	apply_central_impulse(impulse)
+
+
+## GDD Casting: "casting into a teammate = bonk... light knockback." Plain
+## impulse, no ballistic phase like the capsize toss -- GDD calls this a
+## light nudge, not a launch that needs movement/braking suppressed to
+## actually carry.
+func apply_bonk_impulse(impulse: Vector3) -> void:
+	apply_central_impulse(impulse)
+
+
+func _on_player_bonked(hit_peer_id: int, impulse: Vector3) -> void:
+	if hit_peer_id == peer_id and peer_id == multiplayer.get_unique_id():
+		apply_bonk_impulse(impulse)
 
 
 func exit_swim_physics() -> void:

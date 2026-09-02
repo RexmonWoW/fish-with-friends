@@ -10,9 +10,20 @@ signal cast_charge_started(caster_peer_id: int)
 ## Listeners: power meter UI (Art & Polish).
 signal cast_charge_updated(power: float, caster_peer_id: int)
 
-## Emitted on all peers when a cast lands in valid water.
-## Listeners: lure animator (Art & Polish), BiteEventManager (host-only).
-signal cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int)
+## Emitted on all peers when a cast lands anywhere -- water or not (GDD
+## Casting: "no silent rejections, every cast visibly goes somewhere").
+## is_dead_cast is true when the landing spot isn't real water (hit the
+## boat/a railing/a player/etc, or missed everything and fell back to dry
+## ground) -- it still lands and lies there, but nothing will ever bite it.
+## Listeners: lure animator (Art & Polish), BiteEventManager (host-only,
+## skips scheduling a bite for a dead cast).
+signal cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int, is_dead_cast: bool)
+
+## Emitted on all peers when a cast's swept path hits another player (GDD
+## Casting: "casting into a teammate = bonk"). Movement is client-
+## authoritative per player, so only the hit player's own client actually
+## applies the impulse to itself -- same pattern as the capsize toss.
+signal player_bonked(hit_peer_id: int, impulse: Vector3)
 
 ## Emitted on all peers when a cast is rejected by the host (dry land, out of range).
 ## Listeners: power meter UI reset (Minigame Logic / Art & Polish).

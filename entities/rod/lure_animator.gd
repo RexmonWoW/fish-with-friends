@@ -50,7 +50,7 @@ func _build_line_visual() -> void:
 	add_child(_line_mesh)
 
 
-func _on_cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int) -> void:
+func _on_cast_landed(endpoint: Vector3, flight_seconds: float, caster_peer_id: int, _is_dead_cast: bool) -> void:
 	# Only animate for our own rod.
 	var rod := get_parent() as Rod
 	if rod == null or rod.owner_peer_id != caster_peer_id:
