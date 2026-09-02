@@ -49,6 +49,24 @@ func start_tangle(peer_a: int, peer_b: int) -> void:
 	_peer_to_tangle[peer_a] = tangle_id
 	_peer_to_tangle[peer_b] = tangle_id
 
+	# GDD Line Tangling: "a full interrupt, not an overlay." BiteEventManager
+	# checks is_tangled() every frame and freezes itself accordingly, so a
+	# normal tangle (both rods WAITING_BITE, the only way one starts today)
+	# is already covered by the time this returns. A REELING rod can't
+	# actually reach this path -- Rod._on_line_area_entered only starts one
+	# between two WAITING_BITE rods -- but if that ever changes, a reel
+	# left running unpaused underneath a duel would be a real hole. There's
+	# no clean way to PAUSE a client-driven reel (ReelMinigame has no host-
+	# side control at all), so this is a safety net, not a real pause:
+	# cancels the host-side fight tracking rather than leaving it stale.
+	for peer_id in [peer_a, peer_b]:
+		var player: Player = NetworkManager.spawned_players.get(peer_id)
+		var rod := player.equipment_slot.equipped_item as Rod if player else null
+		if rod != null and rod.state == Rod.CastState.REELING:
+			var reel_fight_manager: Node = get_tree().get_first_node_in_group("reel_fight_manager")
+			if reel_fight_manager:
+				reel_fight_manager.cancel_fight(peer_id)
+
 	var timer := Timer.new()
 	timer.one_shot = true
 	timer.wait_time = TIME_LIMIT
@@ -66,6 +84,15 @@ func start_tangle(peer_a: int, peer_b: int) -> void:
 @rpc("authority", "call_local", "reliable")
 func _notify_tangle_started(peer_a: int, peer_b: int) -> void:
 	EventBus.tangle_started.emit(peer_a, peer_b)
+
+
+## GDD Line Tangling: "a full interrupt." BiteEventManager polls this every
+## frame throughout a bite sequence to freeze it while true. Host-only data
+## (_peer_to_tangle), but harmless to call on any peer -- just always false
+## on a client, same as every other host-authoritative query in this
+## codebase that doesn't bother gating the read itself.
+func is_tangled(peer_id: int) -> bool:
+	return _peer_to_tangle.has(peer_id)
 
 
 ## Client entry point -- TangleMinigame UI calls this on mash input.

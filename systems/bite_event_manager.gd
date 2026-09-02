@@ -144,18 +144,23 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		# been waiting -- see PlayerStats.bite_call_radius_growth_per_sec's doc comment above.
 		# Not a dead cast even if nothing's nearby yet, but capped so it's
 		# never a dead cast that ALSO quietly stops meaning where you aimed.
+		# GDD Line Tangling: "a tangle is a full interrupt" -- while tangled,
+		# this doesn't advance waited or even try a new call at all, so a
+		# duel genuinely freezes the search instead of it quietly growing
+		# (or catching something) underneath the mash.
 		var call_result: Dictionary = {}
 		var waited := 0.0
 		while call_result.is_empty():
-			var radius := minf(
-				effective_call_radius_base + stats.bite_call_radius_growth_per_sec * waited,
-				stats.bite_call_radius_max
-			)
-			call_result = spawner.try_call_for(caster_peer_id, endpoint, radius)
-			if not call_result.is_empty():
-				break
+			if not _is_tangled(caster_peer_id):
+				var radius := minf(
+					effective_call_radius_base + stats.bite_call_radius_growth_per_sec * waited,
+					stats.bite_call_radius_max
+				)
+				call_result = spawner.try_call_for(caster_peer_id, endpoint, radius)
+				if not call_result.is_empty():
+					break
+				waited += get_process_delta_time()
 			await get_tree().process_frame
-			waited += get_process_delta_time()
 			if _sequence_id.get(caster_peer_id, -1) != my_sequence:
 				return
 
@@ -163,8 +168,7 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		var species: FishData = call_result["species"]
 		var travel_duration: float = call_result["duration"]
 
-		await get_tree().create_timer(travel_duration).timeout
-		if _sequence_id.get(caster_peer_id, -1) != my_sequence:
+		if not await _wait_unless_tangled(caster_peer_id, my_sequence, travel_duration):
 			spawner.cancel_call(caster_peer_id)
 			return
 
@@ -172,7 +176,10 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		# successful request_hook_set() or the window running out,
 		# whichever comes first. Polled per-frame rather than a flat
 		# await so a press near the start of the window resolves
-		# immediately instead of sitting through the whole thing.
+		# immediately instead of sitting through the whole thing. Frozen
+		# in place (not advancing elapsed, not accepting a hook-set --
+		# see _request_hook_set's own guard) while tangled, same as every
+		# other phase.
 		_hook_open[caster_peer_id] = true
 		_hook_set[caster_peer_id] = false
 		_notify_hook_window.rpc(caster_peer_id, stats.bite_hook_window_seconds)
@@ -180,10 +187,11 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		var elapsed := 0.0
 		while elapsed < stats.bite_hook_window_seconds and not _hook_set.get(caster_peer_id, false):
 			await get_tree().process_frame
-			elapsed += get_process_delta_time()
 			if _sequence_id.get(caster_peer_id, -1) != my_sequence:
 				spawner.cancel_call(caster_peer_id)
 				return
+			if not _is_tangled(caster_peer_id):
+				elapsed += get_process_delta_time()
 
 		_hook_open[caster_peer_id] = false
 
@@ -198,9 +206,36 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		spawner.release_shadow(shadow_id)
 		_notify_hook_missed.rpc(caster_peer_id)
 
-		await get_tree().create_timer(stats.bite_spook_pause_seconds).timeout
-		if _sequence_id.get(caster_peer_id, -1) != my_sequence:
+		if not await _wait_unless_tangled(caster_peer_id, my_sequence, stats.bite_spook_pause_seconds):
 			return
+
+
+## True while peer_id is currently dueling in a tangle (GDD Line Tangling:
+## "a full interrupt, not an overlay -- both players' fishing stops dead
+## for the duration"). _run_bite_sequence checks this every frame through
+## every phase so a duel genuinely freezes it in place, not just the two
+## most obvious spots (an already-swimming-in shadow, an open hook
+## window).
+func _is_tangled(peer_id: int) -> bool:
+	var tangle_manager: Node = get_tree().get_first_node_in_group("tangle_manager")
+	return tangle_manager != null and tangle_manager.is_tangled(peer_id)
+
+
+## Waits `duration` seconds of real, non-tangled time -- ticks are simply
+## skipped while this caster is tangled, so the wait resumes exactly where
+## it left off once the duel resolves instead of restarting or running out
+## underneath it. Returns false if the sequence was invalidated (recast,
+## disconnect, tangle loss) while waiting -- caller should bail immediately
+## the same way a plain timeout-invalidated await already does.
+func _wait_unless_tangled(caster_peer_id: int, my_sequence: int, duration: float) -> bool:
+	var remaining := duration
+	while remaining > 0.0:
+		await get_tree().process_frame
+		if _sequence_id.get(caster_peer_id, -1) != my_sequence:
+			return false
+		if not _is_tangled(caster_peer_id):
+			remaining -= get_process_delta_time()
+	return true
 
 
 @rpc("authority", "call_local", "reliable")
@@ -227,6 +262,13 @@ func _request_hook_set() -> void:
 	var peer_id := 1 if sender == 0 else sender
 	if not _hook_open.get(peer_id, false):
 		return  # too early, too late, or never opened -- silently ignored
+	# GDD Line Tangling: tangling and hook-set both fire on "cast," so a
+	# tangle mash could otherwise set the hook on a window left open right
+	# as the duel started. Server-authoritative, not just relying on the
+	# sequence being frozen (belt and suspenders -- this is the one guard
+	# that can't be raced by timing).
+	if _is_tangled(peer_id):
+		return
 	_hook_set[peer_id] = true
 
 
