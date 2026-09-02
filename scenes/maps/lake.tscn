@@ -1,15 +1,15 @@
-[gd_scene load_steps=10 format=3 uid="uid://ce2kcc3fap3iq"]
+[gd_scene format=3 uid="uid://ce2kcc3fap3iq"]
 
-[ext_resource type="Script" path="res://scenes/maps/lake.gd" id="1_lakescript"]
+[ext_resource type="Script" uid="uid://ddwqoxdrgo4ia" path="res://scenes/maps/lake.gd" id="1_lakescript"]
 [ext_resource type="PackedScene" path="res://entities/livewell/livewell.tscn" id="2_livewell"]
 [ext_resource type="PackedScene" path="res://entities/boat/boat.tscn" id="3_boat"]
-[ext_resource type="Script" path="res://systems/bite_event_manager.gd" id="4_bitemgr"]
-[ext_resource type="PackedScene" path="res://entities/fish/fish.tscn" id="5_fishscene"]
-[ext_resource type="Script" path="res://systems/tangle_manager.gd" id="6_tanglemgr"]
-[ext_resource type="Script" path="res://systems/capsize_manager.gd" id="7_capsizemgr"]
-[ext_resource type="Script" path="res://systems/big_fish_event_manager.gd" id="8_bigfishmgr"]
-[ext_resource type="Script" path="res://systems/visual_fish_spawner.gd" id="9_visualfishspawner"]
-[ext_resource type="Script" path="res://systems/reel_fight_manager.gd" id="10_reelfightmgr"]
+[ext_resource type="Script" uid="uid://bmraqlqpon6kc" path="res://systems/bite_event_manager.gd" id="4_bitemgr"]
+[ext_resource type="PackedScene" uid="uid://bjbg7pd1m320l" path="res://entities/fish/fish.tscn" id="5_fishscene"]
+[ext_resource type="Script" uid="uid://dxlkhcjm0wjnj" path="res://systems/tangle_manager.gd" id="6_tanglemgr"]
+[ext_resource type="Script" uid="uid://5nxjjex057kw" path="res://systems/capsize_manager.gd" id="7_capsizemgr"]
+[ext_resource type="Script" uid="uid://dp446hpe1luv2" path="res://systems/big_fish_event_manager.gd" id="8_bigfishmgr"]
+[ext_resource type="Script" uid="uid://bc8sgnwyqwf2l" path="res://systems/visual_fish_spawner.gd" id="9_visualfishspawner"]
+[ext_resource type="Script" uid="uid://ggglodkabtvy" path="res://systems/reel_fight_manager.gd" id="10_reelfightmgr"]
 
 [sub_resource type="Environment" id="Environment_lake"]
 background_mode = 1
@@ -18,80 +18,81 @@ ambient_light_source = 2
 ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_energy = 0.7
 
+[sub_resource type="PhysicsMaterial" id="PhysMat_water_lowfriction"]
+friction = 0.05
+
 [sub_resource type="PlaneMesh" id="PlaneMesh_water"]
 size = Vector2(100, 100)
 
 [sub_resource type="StandardMaterial3D" id="Mat_water"]
+transparency = 1
 albedo_color = Color(0.15, 0.45, 0.65, 0.85)
 
 [sub_resource type="BoxShape3D" id="Shape_water"]
-size = Vector3(100, 1.0, 100)
-
-[sub_resource type="PhysicsMaterial" id="PhysMat_water_lowfriction"]
-friction = 0.05
+size = Vector3(100, 1, 100)
 
 [node name="Lake" type="Node3D" unique_id=327869229]
 script = ExtResource("1_lakescript")
 
-[node name="Environment" type="Node3D" parent="."]
+[node name="Environment" type="Node3D" parent="." unique_id=1054767854]
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="Environment"]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Environment" unique_id=177185448]
 environment = SubResource("Environment_lake")
 
-[node name="Water" type="StaticBody3D" parent="Environment" groups=["water_surface"]]
+[node name="Water" type="StaticBody3D" parent="Environment" unique_id=1808268335 groups=["water_surface"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 physics_material_override = SubResource("PhysMat_water_lowfriction")
 
-[node name="WaterMesh" type="MeshInstance3D" parent="Environment/Water"]
+[node name="WaterMesh" type="MeshInstance3D" parent="Environment/Water" unique_id=490918553]
 mesh = SubResource("PlaneMesh_water")
 surface_material_override/0 = SubResource("Mat_water")
 
-[node name="WaterCollision" type="CollisionShape3D" parent="Environment/Water"]
+[node name="WaterCollision" type="CollisionShape3D" parent="Environment/Water" unique_id=212298121]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 shape = SubResource("Shape_water")
 
-[node name="Lighting" type="Node3D" parent="."]
+[node name="Lighting" type="Node3D" parent="." unique_id=80547052]
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Lighting"]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Lighting" unique_id=1737320566]
 transform = Transform3D(0.8137977, -0.4545195, 0.3612992, 0, 0.6222285, 0.7828332, -0.5811505, -0.6369316, 0.5063934, 0, 8, 0)
 shadow_enabled = true
 
-[node name="PlayableArea" type="Node3D" parent="."]
+[node name="PlayableArea" type="Node3D" parent="." unique_id=1670506]
 
-[node name="Boat" parent="PlayableArea" instance=ExtResource("3_boat")]
+[node name="Boat" parent="PlayableArea" unique_id=1917481085 instance=ExtResource("3_boat")]
 
-[node name="Livewell" parent="PlayableArea" instance=ExtResource("2_livewell")]
+[node name="Livewell" parent="PlayableArea" unique_id=988745831 instance=ExtResource("2_livewell")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
 
-[node name="BiteEventManager" type="Node" parent="PlayableArea"]
+[node name="BiteEventManager" type="Node" parent="PlayableArea" unique_id=2120702086]
 script = ExtResource("4_bitemgr")
 fish_scene = ExtResource("5_fishscene")
 
-[node name="TangleManager" type="Node" parent="PlayableArea"]
+[node name="TangleManager" type="Node" parent="PlayableArea" unique_id=551555688]
 script = ExtResource("6_tanglemgr")
 
-[node name="CapsizeManager" type="Node" parent="PlayableArea"]
+[node name="CapsizeManager" type="Node" parent="PlayableArea" unique_id=33319012]
 script = ExtResource("7_capsizemgr")
 
-[node name="BigFishEventManager" type="Node" parent="PlayableArea"]
+[node name="BigFishEventManager" type="Node" parent="PlayableArea" unique_id=143249143]
 script = ExtResource("8_bigfishmgr")
 
-[node name="VisualFishSpawner" type="Node" parent="PlayableArea"]
+[node name="VisualFishSpawner" type="Node" parent="PlayableArea" unique_id=680932458]
 script = ExtResource("9_visualfishspawner")
 
-[node name="ReelFightManager" type="Node" parent="PlayableArea"]
+[node name="ReelFightManager" type="Node" parent="PlayableArea" unique_id=1673165827]
 script = ExtResource("10_reelfightmgr")
 
-[node name="PlayerSpawnPoints" type="Node3D" parent="PlayableArea"]
+[node name="PlayerSpawnPoints" type="Node3D" parent="PlayableArea" unique_id=701290898]
 
-[node name="SpawnPoint1" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
+[node name="SpawnPoint1" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints" unique_id=267892594]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0.5, -1.8)
 
-[node name="SpawnPoint2" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
+[node name="SpawnPoint2" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints" unique_id=684531019]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.5, -1.8)
 
-[node name="SpawnPoint3" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
+[node name="SpawnPoint3" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints" unique_id=843257057]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0.5, 1.8)
 
-[node name="SpawnPoint4" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints"]
+[node name="SpawnPoint4" type="Marker3D" parent="PlayableArea/PlayerSpawnPoints" unique_id=1410901876]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0.5, 1.8)
