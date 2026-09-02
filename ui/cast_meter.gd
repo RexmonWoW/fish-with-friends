@@ -15,6 +15,7 @@ var _fill: ColorRect = null
 var _cancel_hint: Label = null
 var _hook_prompt: Label = null
 var _local_rod: Rod = null  ## cached once found -- same node survives stow/re-equip cycles
+var _hook_window_open: bool = false  ## mirrors Rod's own flag via the same EventBus signals
 
 
 func _ready() -> void:
@@ -29,10 +30,13 @@ func _ready() -> void:
 	EventBus.bite_started.connect(_on_bite_started)
 
 
-## Right-click cancels a charging or waiting cast (Rod.request_cancel_cast)
-## -- otherwise there'd be no way to know that exists. Polls the local
-## rod's state directly rather than wiring more EventBus signals, so it
-## stays correct through charging AND the whole waiting-for-a-bite window.
+## GDD Casting: right-click always cancels (charging or waiting); once the
+## line is out, left click doubles as a second cancel binding too, except
+## during an open hook-set window where it's repurposed to set the hook
+## instead (the big SET THE HOOK prompt below covers that case) -- otherwise
+## there'd be no way to know any of this exists. Polls the local rod's state
+## directly rather than wiring more EventBus signals, so it stays correct
+## through charging AND the whole waiting-for-a-bite window.
 func _process(_delta: float) -> void:
 	if _local_rod == null:
 		var player: Player = NetworkManager.spawned_players.get(multiplayer.get_unique_id())
@@ -41,9 +45,10 @@ func _process(_delta: float) -> void:
 		_local_rod = player.equipment_slot.equipped_item as Rod
 		if _local_rod == null:
 			return
-	_cancel_hint.visible = (
-		_local_rod.state == Rod.CastState.CHARGING or _local_rod.state == Rod.CastState.WAITING_BITE
-	)
+	var waiting := _local_rod.state == Rod.CastState.WAITING_BITE
+	_cancel_hint.visible = _local_rod.state == Rod.CastState.CHARGING or waiting
+	if _cancel_hint.visible:
+		_cancel_hint.text = "Click to reel back" if (waiting and not _hook_window_open) else "Right-click to cancel"
 
 
 func _build_ui() -> void:
@@ -145,12 +150,14 @@ func _on_cast_ended_failed(_reason: StringName, caster_peer_id: int) -> void:
 func _on_hook_window_opened(caster_peer_id: int, _duration: float) -> void:
 	if caster_peer_id != multiplayer.get_unique_id():
 		return
+	_hook_window_open = true
 	_hook_prompt.show()
 
 
 func _on_hook_window_closed(caster_peer_id: int) -> void:
 	if caster_peer_id != multiplayer.get_unique_id():
 		return
+	_hook_window_open = false
 	_hook_prompt.hide()
 
 

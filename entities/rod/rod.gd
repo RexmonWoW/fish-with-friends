@@ -51,6 +51,12 @@ func _ready() -> void:
 	EventBus.bite_hook_window_opened.connect(_on_hook_window_opened)
 	EventBus.bite_hook_window_missed.connect(_on_hook_window_closed)
 	EventBus.bite_started.connect(_on_hook_window_closed_from_bite)
+	# GDD Casting: "casts close automatically at round end." RunState
+	# broadcasts round_ended to every peer already (_notify_round_ended is
+	# an authority/call_local RPC), and this isn't owner-gated -- same as
+	# the LineCollider wiring below -- so every peer's own mirror of every
+	# player's rod resets itself, not just the host's or the owner's.
+	RunState.round_ended.connect(_on_round_ended)
 
 	# Not owner-gated -- detection must fire for every peer's local mirror of
 	# every rod (same reasoning as LureAnimator's line-collider tracking).
@@ -121,6 +127,10 @@ func check_line_overlaps_for_tangle() -> void:
 		return
 	for area in collider.get_overlapping_areas():
 		_try_start_tangle_with(area)
+
+
+func _on_round_ended(_round_number: int, _day_number: int) -> void:
+	force_cancel_cast()
 
 
 func _on_tangle_resolved(_winner_peer_id: int, loser_peer_id: int) -> void:
@@ -245,13 +255,18 @@ func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("cast"):
 		# GDD Bite Detection: a shadow struck and the hook-set window is
 		# open -- same button as casting itself, reused rather than a new
-		# binding, since start_charge() is already a no-op outside IDLE.
+		# binding.
 		if state == CastState.WAITING_BITE and _hook_window_open:
 			var bite_manager: Node = get_tree().get_first_node_in_group("bite_event_manager")
 			if bite_manager:
 				bite_manager.request_hook_set()
+		elif state == CastState.WAITING_BITE:
+			# GDD Casting: "once the line is out, either click reels it
+			# back" -- left click doubles as a second cancel binding outside
+			# an open hook-set window, where it means something else.
+			request_cancel_cast()
 		else:
-			start_charge()
+			start_charge()  # no-op outside IDLE
 
 	if Input.is_action_just_released("cast"):
 		release_cast()
