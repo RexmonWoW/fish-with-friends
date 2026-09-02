@@ -318,10 +318,26 @@ Not two separate games — one game with the fail state switched off. Same fishi
 ## Run Saves
 Runs persist so a crew can stop and pick it back up, and so people can drop in and out of an ongoing run without losing their progress.
 
-- The **host** owns the save. Creating a lobby means picking one of 4 save slots (or starting fresh). The run only exists when that host is around — same shape as Valheim/Terraria co-op hosting.
-- A slot holds **crew state** (day, quota, shared pot, boat upgrades, mode flag) plus **per-player state keyed by Steam ID** (their rod upgrades, since those are per-run).
-- A player who isn't present doesn't block anything — the run continues without them, and their upgrades sit in the slot waiting for them to come back.
-- Saves are **versioned, not migrated.** During active development, a save from an older build is discarded with a clear message rather than being upgraded. Writing migration code for a game whose data changes weekly is a time sink.
+### Where saves live
+- The **host** owns the file. Creating a lobby means picking one of **4 slots** or starting fresh. The run only exists when that host is around — same shape as Valheim/Terraria co-op hosting.
+- Each slot shows at a glance: solo or co-op, quota or casual, day reached, who's in the crew, when it was last played.
+
+### Solo and co-op saves never mix
+- A solo save is solo-only. A co-op save is co-op only.
+- This isn't arbitrary: day-1 quota is multiplied by crew size and every day after compounds off it, so a solo-tuned quota dropped into a 4-player run (or the reverse) is meaningless. Keeping them separate keeps the escalation curve honest.
+
+### What a slot holds
+- **Crew state:** day, current quota, shared pot, boat upgrades, mode flag (quota/casual), and the player-count multiplier the run was created with.
+- **Per-player state, keyed by Steam ID:** their PlayerStats — rod upgrades and anything else the shop bought them.
+- **Nothing mid-round.** Saving happens at day boundaries in the lobby, never mid-cast. There's nothing worth keeping mid-round anyway: the livewell sells out at the end of every round.
+
+### Who can play a slot
+- The crew roster is remembered, but nobody is required to show up. An absent player's upgrades sit in the slot waiting for them.
+- **The quota multiplier is fixed at creation and does not rescale.** Playing short-handed is harder — that's the honest cost of a friend bailing, and rescaling mid-run would make the compounding formula incoherent. *(Default call — if a mercy rescale for a missing player is wanted instead, say so.)*
+- Someone new joining a co-op save starts bare and catches up. No scaling them up to match the crew.
+
+### Versioning
+- Saves are **versioned, not migrated.** A save from an older build is discarded with a clear message rather than upgraded. Writing migration code while the data shape still changes weekly is wasted work.
 
 ---
 
