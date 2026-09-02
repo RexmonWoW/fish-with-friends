@@ -56,6 +56,21 @@ func _on_local_player_spawned(_player: Player) -> void:
 		return
 	print("Shop panel actually renders when opened.")
 
+	# ── The actual playtest bug: content rendered OUTSIDE the panel's own ──
+	# ── box (a doubled-up manual offset), not just off-screen entirely -- ──
+	# ── is_visible_in_tree() alone can't catch that, only real geometry can. ──
+	if shop_display._rows_container.get_child_count() == 0:
+		print("FAIL: test setup problem -- no item rows built after opening")
+		get_tree().quit(1)
+		return
+	var bg_rect: Rect2 = shop_display._panel_bg.get_global_rect()
+	var rows_rect: Rect2 = shop_display._rows_container.get_global_rect()
+	if not bg_rect.encloses(rows_rect):
+		print("FAIL: item rows render outside the panel box -- bg_rect=%s rows_rect=%s" % [bg_rect, rows_rect])
+		get_tree().quit(1)
+		return
+	print("Item rows render inside the panel's own box: bg_rect=%s rows_rect=%s" % [bg_rect, rows_rect])
+
 	# ── Closing: panel hides, hint comes back (still in range). ──
 	shop_display._close()
 	await get_tree().process_frame

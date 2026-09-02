@@ -60,6 +60,18 @@ func _build_ui() -> void:
 
 	_panel = Control.new()
 	_panel.set_anchors_preset(Control.PRESET_CENTER)
+	# The one manual offset in this panel -- PRESET_CENTER anchors the
+	# node's ORIGIN to screen center, so centering a fixed-size box still
+	# needs this to land its top-left corner correctly. Every child below
+	# is FULL_RECT within this box instead, so nothing else ever needs to
+	# know this panel's own position/size to place itself -- the bug this
+	# replaces was exactly that: a child re-deriving a sibling's offset and
+	# double-applying it. Same single-offset-only pattern already used
+	# correctly elsewhere in this codebase (CastMeter's bar_container,
+	# DebugConsole's panel).
+	_panel.position = -PANEL_SIZE * 0.5
+	_panel.custom_minimum_size = PANEL_SIZE
+	_panel.size = PANEL_SIZE
 	# STOP, unlike almost everything else in this codebase -- the shop
 	# panel is the one UI that needs real mouse clicks (Buttons), and a
 	# click landing on the background instead of a button must NOT fall
@@ -71,17 +83,22 @@ func _build_ui() -> void:
 
 	_panel_bg = ColorRect.new()
 	_panel_bg.color = Color(0.05, 0.05, 0.05, 0.92)
-	_panel_bg.size = PANEL_SIZE
-	_panel_bg.position = -PANEL_SIZE * 0.5
+	_panel_bg.set_anchors_preset(Control.PRESET_FULL_RECT)  # fills _panel exactly, no size/position math
 	_panel_bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	_panel.add_child(_panel_bg)
 
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)  # also fills _panel -- never touches _panel_bg's own offset
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	margin.mouse_filter = Control.MOUSE_FILTER_STOP
+	_panel.add_child(margin)
+
 	var content := VBoxContainer.new()
-	content.position = _panel_bg.position + Vector2(16.0, 12.0)
-	content.custom_minimum_size = PANEL_SIZE - Vector2(32.0, 24.0)
-	content.size = content.custom_minimum_size
 	content.add_theme_constant_override("separation", 8)
-	_panel_bg.add_child(content)
+	margin.add_child(content)
 
 	var title := Label.new()
 	title.text = "SHOP"
