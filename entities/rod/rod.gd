@@ -38,6 +38,17 @@ const ARC_SWEEP_MAX_STEP_LENGTH: float = 0.2
 const BONK_HORIZONTAL_IMPULSE: float = 100.0
 const BONK_VERTICAL_IMPULSE: float = 80.0
 
+## GDD Casting: "rod smack" -- a dedicated melee swing, purely for
+## horseplay. Same impulse feel as the cast bonk (reuses its exact
+## networking -- EventBus.player_bonked / Player.apply_bonk_impulse), just
+## its own range/cone/cooldown since it's a swing, not a cast landing on
+## someone.
+const SMACK_RANGE: float = 2.5
+const SMACK_HALF_ANGLE_DEGREES: float = 50.0  ## generous -- a satisfying swing, not a precision poke
+const SMACK_HORIZONTAL_IMPULSE: float = 100.0
+const SMACK_VERTICAL_IMPULSE: float = 80.0
+const SMACK_COOLDOWN_SECONDS: float = 1.0
+
 var state: CastState = CastState.IDLE
 var charge_start_time: float = 0.0
 var current_power: float = 0.0      ## 0.0–1.0, NOT replicated
@@ -67,6 +78,11 @@ var _hook_window_open: bool = false
 ## or shows one (see _process's owner gate below).
 var _landing_preview: MeshInstance3D = null
 var _landing_preview_material: StandardMaterial3D = null
+
+## Client-side cooldown gate for the rod smack -- same trust model as the
+## rest of this codebase's mash/tangle inputs (friends-only game, no
+## damage here anyway); the host still does the actual hit detection.
+var _last_smack_time: float = -1000.0
 
 
 func _ready() -> void:
@@ -274,6 +290,15 @@ func _process(_delta: float) -> void:
 		_update_landing_preview()
 	elif _landing_preview != null and _landing_preview.visible:
 		_hide_landing_preview()
+
+	# GDD Casting: "rod smack... works whether or not a line is out" --
+	# deliberately NOT gated on `state` at all, unlike every other input
+	# below (the only rod-out gates are is_equipped/not-swimming above).
+	if Input.is_action_just_pressed(&"smack"):
+		var now := Time.get_ticks_msec() / 1000.0
+		if now - _last_smack_time >= SMACK_COOLDOWN_SECONDS:
+			_last_smack_time = now
+			request_smack()
 
 	if Input.is_action_just_pressed("cast"):
 		# GDD Bite Detection: a shadow struck and the hook-set window is
@@ -581,6 +606,50 @@ func _notify_bonk(hit_peer_id: int, impulse: Vector3) -> void:
 	EventBus.player_bonked.emit(hit_peer_id, impulse)
 
 
+# ── RPC 4: Client → Host → All clients, rod smack ─────────────────────────────
+## GDD Casting: "rod smack... purely for horseplay." Host detects the hit
+## (a short cone in front of the caster's camera) and broadcasts it --
+## reuses _notify_bonk exactly, the same as a cast landing on a player, so
+## there's only ever one "someone got shoved" broadcast path in this
+## codebase, not two parallel ones.
+
+func request_smack() -> void:
+	if player_camera == null:
+		return
+	_request_smack.rpc(player_camera.global_transform.origin, -player_camera.global_transform.basis.z)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_smack(cam_origin: Vector3, cam_forward: Vector3) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	var effective_sender := 1 if sender == 0 else sender
+	if effective_sender != owner_peer_id:
+		return  # Wrong rod -- reject silently.
+
+	var half_angle_rad := deg_to_rad(SMACK_HALF_ANGLE_DEGREES)
+	for peer_id in NetworkManager.spawned_players:
+		if peer_id == owner_peer_id:
+			continue
+		var victim: Player = NetworkManager.spawned_players[peer_id]
+		var to_victim := victim.global_position - cam_origin
+		var dist := to_victim.length()
+		if dist < 0.001 or dist > SMACK_RANGE:
+			continue
+		if cam_forward.angle_to(to_victim.normalized()) > half_angle_rad:
+			continue
+
+		var away := to_victim
+		away.y = 0.0
+		# Directly above/below (rare, but possible if someone's mid-jump
+		# right in front of you) -- push along the swing direction instead
+		# of a zero-length normalize.
+		away = cam_forward if away.length_squared() < 0.01 else away.normalized()
+		var impulse := away * SMACK_HORIZONTAL_IMPULSE + Vector3.UP * SMACK_VERTICAL_IMPULSE
+		_notify_bonk.rpc(peer_id, impulse)
+
+
 # ── Big Fish Event (BigFishEventManager, host-only, calls this directly) ───────
 ## Every peer has a SEPARATE Rod instance, not shared memory -- setting
 ## .state host-side only changes the host's own local mirror, so joining/
@@ -591,7 +660,7 @@ func _set_big_fish_event_state(participating: bool) -> void:
 	state = CastState.BIG_FISH_EVENT if participating else CastState.IDLE
 
 
-# ── RPC 4: Client → Host, local reel minigame resolved ─────────────────────────
+# ── RPC 5: Client → Host, local reel minigame resolved ─────────────────────────
 ## Reel itself runs entirely client-side (ReelMinigame). This just tells the
 ## host to despawn the Fish it's holding for this rod. The owning client
 ## already reset its own state to IDLE optimistically before calling this.
