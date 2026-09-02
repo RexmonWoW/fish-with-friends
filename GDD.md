@@ -63,7 +63,8 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 - **Landing preview:** while charging, a marker sits on the water exactly where the bobber will land, updating live with aim and power (WEBFISHING/Fortnite style). It reads as blocked when the path is obstructed or the spot isn't water. You should never release a cast without knowing where it's going — this is the main thing that makes casting feel fair.
 - **The arc hits what's in its way** — the whole flight path is checked, not just the endpoint. First thing hit wins, so a cast can't pass through the boat, a railing, or a person.
 - **Dead cast:** a bobber that ends up anywhere that isn't water just lands there and lies there — nothing will ever bite it. Cancel or recast to reel it back. No penalty beyond the wasted seconds. It does not bounce; it plops where it hit (Minecraft-style).
-- **Casting into a player = bonk.** Light knockback + thunk, bobber drops at their feet as a dead cast. No damage, pure comedy.
+- **Casting into a player = bonk.** Light knockback + thunk, bobber drops at their feet as a dead cast. No damage, pure comedy. Doesn't need to connect reliably — landing one because you're right next to someone is the funny version.
+- **Rod smack.** A dedicated melee swing: short range, in front of you, shoves whoever it hits. No damage, brief cooldown, works whether or not a line is out. Purely for horseplay on a crowded boat.
 - No silent rejections — every cast visibly goes somewhere.
 - **Default cast range is short — 40% of the old max.** Deliberate: paired with spatial rarity, early runs can only reach the common shallows, and rod range upgrades are what open up the deep water where the money is. Range is the game's main progression axis, not a stat tweak.
 - **Cancelling:** while charging, right click cancels (left is the charge button). Once the line is out, either click reels it back in — except left click during an open hook-set window, which sets the hook.
@@ -102,6 +103,7 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 ---
 
 ## Line Tangling
+- A tangle is a **full interrupt**, not an overlay: both players' fishing stops dead for the duration. No shadow arrives, no hook-set window opens, no reel runs underneath it. The duel is the only thing happening until it resolves.
 - Lines cross = prompt appears = button mash tug of war
 - Winner keeps their cast, loser loses theirs
 
