@@ -44,8 +44,13 @@ var _hull: PhysicsBody3D = null   # populated via setup(), used to mask collisio
 
 
 func _ready() -> void:
-	if not multiplayer.is_server():
-		return
+	# Every peer needs its own local node in this group -- Player looks this
+	# up on whichever client is swimming (any peer, not just the host) to
+	# claim a corner. Gating add_to_group itself on is_server() left every
+	# non-host client's own lookup returning null, silently dropping the
+	# claim press (same pass-37 lesson as ReelFightManager/
+	# VisualFishSpawner). Only the actual host-authoritative state stays
+	# behind the is_server() check.
 	add_to_group("capsize_manager")
 
 

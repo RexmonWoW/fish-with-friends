@@ -22,9 +22,16 @@ var _timers: Dictionary = {}         # tangle_id -> Timer
 
 
 func _ready() -> void:
+	# Every peer needs its own local node in this group -- TangleMinigame
+	# looks this up on whichever client is mashing (any peer, not just the
+	# host) to report a mash. Gating add_to_group itself on is_server() left
+	# every non-host client's own lookup returning null, silently dropping
+	# every mash press (same pass-37 lesson as ReelFightManager/
+	# VisualFishSpawner). Only the actual host-authoritative state stays
+	# behind the is_server() check.
+	add_to_group("tangle_manager")
 	if not multiplayer.is_server():
 		return
-	add_to_group("tangle_manager")
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 
 

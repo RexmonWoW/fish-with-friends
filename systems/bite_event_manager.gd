@@ -20,12 +20,13 @@ const SPOOK_PAUSE_SECONDS: float = 1.5      ## pause before looking for another 
 ## on whatever wanders by" (GDD) -- rather than a hard "nothing nearby, no
 ## bite," the radius VisualFishSpawner.try_call_for() searches within grows
 ## the longer a caster's been waiting, so a blind cast is never truly dead,
-## just slower and less precise. Growth rate is fast enough that even a
-## worst-case (a cast landing far from every shadow's whole wander loop)
-## resolves in a few seconds, not a real "wait and see" -- open question for
-## Nick on whether blind casts should feel slower than this (see PROGRESS.md).
+## just slower and less precise. Capped at CALL_RADIUS_MAX -- GDD's spatial
+## rarity ("a shadow across the lake never comes to you... gives the water a
+## readable shape") only means something if waiting long enough can't
+## eventually reach literally everything, the way an uncapped grow rate did.
 const CALL_RADIUS_BASE: float = 4.0
 const CALL_RADIUS_GROWTH_PER_SEC: float = 12.0
+const CALL_RADIUS_MAX: float = 10.0  ## conservative placeholder, tune by feel
 
 ## Assign res://entities/fish/fish.tscn in the inspector.
 @export var fish_scene: PackedScene
@@ -59,9 +60,16 @@ var _active_fish: Dictionary = {}  # int → Fish
 
 
 func _ready() -> void:
+	# Every peer needs its own local node in this group -- Rod looks this up
+	# on whichever client owns the rod (any peer, not just the host) to
+	# resolve a hook-set press. Gating add_to_group itself on is_server()
+	# left every non-host client's own lookup returning null and the press
+	# silently dropped (same pass-37 lesson as ReelFightManager/
+	# VisualFishSpawner). Only the actual host-authoritative behavior stays
+	# behind the is_server() check.
+	add_to_group("bite_event_manager")
 	if not multiplayer.is_server():
 		return
-	add_to_group("bite_event_manager")  ## Rod looks this up to resolve a reel.
 	EventBus.cast_landed.connect(_on_cast_landed)
 
 
@@ -106,11 +114,12 @@ func _run_bite_sequence(caster_peer_id: int, endpoint: Vector3, flight_seconds: 
 		# Poll for a wandering shadow within range, widening the search the
 		# longer this particular attempt (this shadow, this hook window) has
 		# been waiting -- see CALL_RADIUS_GROWTH_PER_SEC's doc comment above.
-		# Not a dead cast even if nothing's nearby yet.
+		# Not a dead cast even if nothing's nearby yet, but capped so it's
+		# never a dead cast that ALSO quietly stops meaning where you aimed.
 		var call_result: Dictionary = {}
 		var waited := 0.0
 		while call_result.is_empty():
-			var radius := CALL_RADIUS_BASE + CALL_RADIUS_GROWTH_PER_SEC * waited
+			var radius := minf(CALL_RADIUS_BASE + CALL_RADIUS_GROWTH_PER_SEC * waited, CALL_RADIUS_MAX)
 			call_result = spawner.try_call_for(caster_peer_id, endpoint, radius)
 			if not call_result.is_empty():
 				break

@@ -69,8 +69,13 @@ var _boat_clearance: float = 8.0  ## min distance from _center a spot must be --
 
 
 func _ready() -> void:
-	if not multiplayer.is_server():
-		return
+	# Every peer needs its own local node in this group -- the minigame UI
+	# looks this up on whichever client is participating (any peer, not
+	# just the host) to report holding/QTE hits. Gating add_to_group itself
+	# on is_server() left every non-host participant's own lookup returning
+	# null, silently dropping their input (same pass-37 lesson as
+	# ReelFightManager/VisualFishSpawner). Only the actual host-authoritative
+	# simulation stays behind the is_server() check.
 	add_to_group("big_fish_event_manager")
 
 
