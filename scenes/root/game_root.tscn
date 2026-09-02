@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" path="res://ui/capsize_minigame.tscn" id="9_capsizemini"]
 [ext_resource type="PackedScene" path="res://ui/big_fish_event_minigame.tscn" id="10_bigfishmini"]
 [ext_resource type="PackedScene" path="res://ui/debug_console.tscn" id="11_debugconsole"]
+[ext_resource type="PackedScene" path="res://ui/crosshair.tscn" id="12_crosshair"]
 
 [node name="GameRoot" type="Node"]
 
@@ -46,3 +47,5 @@ spawn_limit = 4
 [node name="BigFishEventMinigame" parent="UILayer" instance=ExtResource("10_bigfishmini")]
 
 [node name="DebugConsole" parent="UILayer" instance=ExtResource("11_debugconsole")]
+
+[node name="Crosshair" parent="UILayer" instance=ExtResource("12_crosshair")]
