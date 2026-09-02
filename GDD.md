@@ -65,6 +65,8 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 - **Dead cast:** a bobber that ends up anywhere that isn't water just lands there and lies there — nothing will ever bite it. Cancel or recast to reel it back. No penalty beyond the wasted seconds. It does not bounce; it plops where it hit (Minecraft-style).
 - **Casting into a player = bonk.** Light knockback + thunk, bobber drops at their feet as a dead cast. No damage, pure comedy.
 - No silent rejections — every cast visibly goes somewhere.
+- **Cancelling:** while charging, right click cancels (left is the charge button). Once the line is out, either click reels it back in — except left click during an open hook-set window, which sets the hook.
+- Casts close automatically at round end — no line left out, no accidental fishing in the lobby.
 
 ---
 
@@ -72,8 +74,9 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 - Fish swim visibly in the water as wandering shadows (size hints at species/rarity), all the time — not spawned by casting.
 - Shadow look: Pokémon / Animal Crossing / Fishing Resort style — a flat dark silhouette blob at/under the water surface, not a 3D fish body. (Placeholder stays a simple flat dark shape Code can build; real shadow art is Nick's later.)
 - Shadows belong to the fishing map — they despawn with it and never appear in the lobby or between rounds.
-- Cast near one to call it: it breaks off from wandering and swims to your bobber instead of an invisible timer deciding when you get a bite.
+- Cast near one to call it: it breaks off from wandering and swims to your bobber instead of an invisible timer deciding when you get a bite. "Near" is a real radius — a shadow across the lake never comes to you, so where you land the bobber genuinely matters.
 - Casting where nothing's currently swimming isn't a dead cast — a wandering shadow that drifts into range later still gets called, just later. Aiming well gets a faster, more certain bite; aiming blind means waiting on whatever wanders by. *(Default call, not yet confirmed with Nick — flag if a hard "no shadow nearby = no bite" is preferred instead.)*
+- **Rarity is spatial:** common fish wander near the boat, rarer/bigger shadows hang further out. Casting far is a real risk/reward choice — harder to reel in (fill rate already scales down with distance), better payoff. Makes aim and the landing preview matter, and gives the water a readable shape: the good stuff is out deep.
 - Once a shadow is swimming for your bobber, it's yours — another player's cast can't also call it.
 - Arrival at the bobber opens a short hook-set window — press to set the hook. Miss it and the fish spooks back off to wander again.
 - Hook-set success drops straight into the Reel Mechanic.
@@ -188,7 +191,7 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 Quota isn't a fixed curve independent of how you're doing — it climbs every day on its own, and climbs faster if you clear it by a lot, so one big haul doesn't buy several free days afterward.
 
 - Day 1 quota = base quota × player-count multiplier (below).
-- Every day after: `next_quota = round(previous_quota × 1.15 + surplus × 0.4)`, where `surplus` is how much your cumulative total cleared the previous quota by (0 if you just barely passed).
+- Every day after: `next_quota = round(previous_quota × 1.35 + surplus × 0.5)`, where `surplus` is how much your cumulative total cleared the previous quota by (0 if you just barely passed). (Was 1.15 / 0.4 — too flat in playtest, days stopped feeling like they escalated.)
 - Player-count multiplier is sub-linear on purpose: the livewell is shared and capped at 5 slots no matter how many people are playing, so more players mostly means filling those 5 slots with better fish faster, not more total capacity.
 
 | Players | Multiplier |
@@ -198,7 +201,7 @@ Quota isn't a fixed curve independent of how you're doing — it climbs every da
 | 3 | 2.1x |
 | 4 | 2.5x |
 
-Base quota and the 1.15 / 0.4 constants are starting points to playtest and tune, not final numbers — see PROGRESS.md.
+Base quota and the 1.35 / 0.5 constants are starting points to playtest and tune, not final numbers — see PROGRESS.md.
 
 ---
 
@@ -314,6 +317,17 @@ Live status for this list lives in PROGRESS.md, not here — this list is the pl
 - Steam leaderboard
 - Microtransactions
 - Fun idea, not scoped: a challenge mode combining every map's hazard at once, once all maps/hazards exist
+- Boat engine — lets the crew head in early instead of waiting out the round timer
+- Crouch
+- Beer: a consumable that makes fish stats unreadable, or subtly wrong, but only for the drinker
+- See the stats of the fish you're currently holding
+- Swimming as a normal ability, not just a capsize state
+- Weeds you can tangle your line in
+- Having to physically untangle your line after casting somewhere it can't land
+- **Shorter default cast range**, with rod upgrades extending it later — pairs with spatial rarity to make range a real progression axis: early runs can only reach the common shallows, upgrades open up the deep water
+- Wind on the boat that can shove you overboard
+- Wet floors that make the deck slippery
+- Things stuck to the bottom of the boat — needs scuba gear or a swim to fix
 
 ---
 
