@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/spatial_rarity_test.gd" id="1_spatialrarity"]
+
+[node name="SpatialRarityTest" type="Node"]
+script = ExtResource("1_spatialrarity")

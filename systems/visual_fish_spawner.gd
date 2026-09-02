@@ -90,13 +90,15 @@ func setup(center: Vector3) -> void:
 func _spawn_new_ambient() -> void:
 	if NetworkManager.get_current_map() != _map:
 		return
-	var species: FishData = SpawnPool.roll_species(current_map_id)
-	if species == null:
-		push_warning("VisualFishSpawner: SpawnPool returned null for map '%s'" % current_map_id)
-		return
 	var home: Variant = _roll_home_point()
 	if home == null:
 		return  # bad luck this probe -- population may end up slightly under AMBIENT_COUNT, acceptable
+	# GDD Bite Detection: "rarity is spatial" -- rolled AFTER the home point
+	# so the species pick can actually be biased by how far out it landed.
+	var species: FishData = SpawnPool.roll_species(current_map_id, _distance_factor_for(home as Vector3))
+	if species == null:
+		push_warning("VisualFishSpawner: SpawnPool returned null for map '%s'" % current_map_id)
+		return
 	var id := _next_id
 	_next_id += 1
 	var seed := randf() * TAU
@@ -124,6 +126,17 @@ func _roll_home_point() -> Variant:
 		if water_point != null:
 			return water_point
 	return null
+
+
+## Maps a home point's horizontal distance from _center onto SpawnPool.
+## roll_species's 0..1 distance_factor (0 = right by the boat, 1 = the far
+## edge of HOME_MIN_DIST..HOME_MAX_DIST). Horizontal only -- Y differs
+## between the map center and the water surface for reasons that have
+## nothing to do with "how far out is this," same reasoning as Rod's own
+## horizontal-only cast distance.
+func _distance_factor_for(pos: Vector3) -> float:
+	var dist := Vector2(pos.x - _center.x, pos.z - _center.z).length()
+	return clampf(inverse_lerp(HOME_MIN_DIST, HOME_MAX_DIST, dist), 0.0, 1.0)
 
 
 @rpc("authority", "call_local", "reliable")
