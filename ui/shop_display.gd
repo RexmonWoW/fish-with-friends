@@ -31,7 +31,13 @@ var _rows_container: VBoxContainer = null
 
 func _ready() -> void:
 	_build_ui()
-	hide()
+	# Deliberately NOT hiding the root here -- unlike most of this
+	# codebase's overlays (one root visibility state, hidden until a single
+	# show() call), this one has TWO independent children (_hint_label,
+	# _panel) that each manage their own visibility. Playtest: hiding the
+	# root in _ready() with nothing ever calling root show() again left
+	# both permanently invisible regardless of their own state -- a hidden
+	# parent hides its children no matter what.
 	EventBus.shop_proximity_changed.connect(_on_proximity_changed)
 	EventBus.purchase_resolved.connect(_on_purchase_resolved)
 	RunState.pot_changed.connect(_on_pot_changed)
