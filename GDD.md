@@ -64,7 +64,7 @@ Walkable bait and tackle lobby → dock → 5 min boat round → return → sell
 - **The arc hits what's in its way** — the whole flight path is checked, not just the endpoint. First thing hit wins, so a cast can't pass through the boat, a railing, or a person.
 - **Dead cast:** a bobber that ends up anywhere that isn't water just lands there and lies there — nothing will ever bite it. Cancel or recast to reel it back. No penalty beyond the wasted seconds. It does not bounce; it plops where it hit (Minecraft-style).
 - **Casting into a player = bonk.** Light knockback + thunk, bobber drops at their feet as a dead cast. No damage, pure comedy. Doesn't need to connect reliably — landing one because you're right next to someone is the funny version.
-- **Rod smack.** A dedicated melee swing: short range, in front of you, shoves whoever it hits. No damage, brief cooldown, works whether or not a line is out. Purely for horseplay on a crowded boat.
+- **Rod smack.** A dedicated melee swing (F): short range, in front of you, shoves whoever it hits. No damage, brief cooldown, works whether or not a line is out. Purely for horseplay on a crowded boat. **The swing has to be visible** — a real arc the rod travels through, seen by everyone, not just an invisible shove. The visible wind-up is the whole joke.
 - No silent rejections — every cast visibly goes somewhere.
 - **Default cast range is short — 40% of the old max.** Deliberate: paired with spatial rarity, early runs can only reach the common shallows, and rod range upgrades are what open up the deep water where the money is. Range is the game's main progression axis, not a stat tweak.
 - **Cancelling:** while charging, right click cancels (left is the charge button). Once the line is out, either click reels it back in — except left click during an open hook-set window, which sets the hook.
@@ -319,7 +319,7 @@ Not two separate games — one game with the fail state switched off. Same fishi
 Runs persist so a crew can stop and pick it back up, and so people can drop in and out of an ongoing run without losing their progress.
 
 ### Where saves live
-- The **host** owns the file. Creating a lobby means picking one of **4 slots** or starting fresh. The run only exists when that host is around — same shape as Valheim/Terraria co-op hosting.
+- The **host** owns the file. The save is chosen **in the main menu, before anything loads** — pick one of **4 slots** or start fresh, then the game loads into that run's lobby. The run only exists when that host is around — same shape as Valheim/Terraria co-op hosting.
 - Each slot shows at a glance: solo or co-op, quota or casual, day reached, who's in the crew, when it was last played.
 
 ### Solo and co-op saves never mix
