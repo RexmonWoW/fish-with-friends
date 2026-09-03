@@ -51,7 +51,7 @@ func _ready() -> void:
 	_input.set_anchors_preset(Control.PRESET_CENTER)
 	_input.position = -PANEL_SIZE / 2.0 + Vector2(16, 66)
 	_input.custom_minimum_size = Vector2(PANEL_SIZE.x - 32, 28)
-	_input.placeholder_text = "skip_round / skip_day / set_time <s> / add_money <amt> / save_run|load_run <slot> / list_saves"
+	_input.placeholder_text = "skip_round / skip_day / set_time <s> / add_money <amt> / save_run|load_run|delete_run <slot> / new_run <slot> <quota|casual> / list_saves"
 	_input.text_submitted.connect(_on_submitted)
 	add_child(_input)
 
@@ -121,6 +121,27 @@ func _run_command(command: String) -> void:
 				_log_line("Loaded slot %s." % parts[1])
 			else:
 				_log_line("Load failed: %s" % result["reason"])
+		"new_run":
+			if parts.size() < 3 or not parts[1].is_valid_int():
+				_log_line("usage: new_run <slot 0-3> <quota|casual>")
+				return
+			if parts[2] != "quota" and parts[2] != "casual":
+				_log_line("usage: new_run <slot 0-3> <quota|casual>")
+				return
+			var new_result: Dictionary = RunSaveManager.start_new_run(int(parts[1]), StringName(parts[2]))
+			if new_result["success"]:
+				_log_line("Started a new %s run in slot %s." % [parts[2], parts[1]])
+			else:
+				_log_line("New run failed: %s" % new_result["reason"])
+		"delete_run":
+			if parts.size() < 2 or not parts[1].is_valid_int():
+				_log_line("usage: delete_run <slot 0-3>")
+				return
+			var delete_result: Dictionary = RunSaveManager.delete_slot(int(parts[1]))
+			if delete_result["success"]:
+				_log_line("Deleted slot %s." % parts[1])
+			else:
+				_log_line("Delete failed: %s" % delete_result["reason"])
 		"list_saves":
 			var lines := RunSaveManager.describe_slots()
 			for line in lines:

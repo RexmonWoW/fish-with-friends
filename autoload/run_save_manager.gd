@@ -89,7 +89,7 @@ func save_to_slot(slot: int) -> Dictionary:
 	var save := RunSave.new()
 	save.save_version = RunSave.CURRENT_VERSION
 	save.is_coop = session_is_coop
-	save.game_mode = existing.game_mode if existing != null else &"quota"
+	save.game_mode = RunState.game_mode
 	save.created_at_unix = existing.created_at_unix if existing != null else Time.get_unix_time_from_system()
 	save.last_played_unix = Time.get_unix_time_from_system()
 	save.day_number = RunState.day_number
@@ -132,7 +132,7 @@ func load_from_slot(slot: int) -> Dictionary:
 
 	RunState.restore_crew_state(
 		save.day_number, save.current_quota, save.total_money_earned,
-		save.has_fish_finder, save.player_count_multiplier
+		save.has_fish_finder, save.player_count_multiplier, save.game_mode
 	)
 
 	_roster_stats = save.player_stats_by_steam_id.duplicate()
@@ -152,6 +152,61 @@ func load_from_slot(slot: int) -> Dictionary:
 		NetworkManager.broadcast_player_stats(peer_id, player.stats)
 
 	return {"success": true, "reason": &""}
+
+
+# ── New run / delete (phase 2: the slot picker) ─────────────────────────────
+
+## Host-only. GDD Run Saves phase 2: "Empty slots offer a new run." Resets
+## RunState to fresh defaults, locks in solo/co-op off whoever's actually
+## here right now and the chosen game mode, and writes an initial save
+## immediately -- the slot's type isn't just claimed in memory until the
+## first real day-end autosave.
+func start_new_run(slot: int, game_mode: StringName) -> Dictionary:
+	if not multiplayer.is_server():
+		return {"success": false, "reason": &"not_host"}
+	if slot < 0 or slot >= SLOT_COUNT:
+		return {"success": false, "reason": &"bad_slot"}
+	if NetworkManager._current_scene_id != &"lobby":
+		return {"success": false, "reason": &"not_in_lobby"}
+	if _load_raw(slot) != null:
+		return {"success": false, "reason": &"slot_occupied"}
+
+	RunState.reset_for_new_run(game_mode)
+	_roster_stats.clear()
+	_roster_names.clear()
+	return save_to_slot(slot)
+
+
+## Host-only. GDD: "Deleting/overwriting a slot should be possible without
+## leaving the menu." A no-op success on an already-empty slot -- deleting
+## nothing isn't an error.
+func delete_slot(slot: int) -> Dictionary:
+	if not multiplayer.is_server():
+		return {"success": false, "reason": &"not_host"}
+	if slot < 0 or slot >= SLOT_COUNT:
+		return {"success": false, "reason": &"bad_slot"}
+
+	var path := _path_for(slot)
+	if FileAccess.file_exists(path):
+		var err := DirAccess.remove_absolute(path)
+		if err != OK:
+			return {"success": false, "reason": &"delete_failed"}
+	return {"success": true, "reason": &""}
+
+
+## Public read-only peek at a slot's saved data for the picker's display --
+## null for empty. Never mutates _active_slot/roster, unlike load_from_slot.
+func peek_slot(slot: int) -> RunSave:
+	return _load_raw(slot)
+
+
+## Called by NetworkManager.disconnect_from_lobby() when a run fully ends,
+## so the NEXT lobby's picker actually shows instead of silently
+## continuing to autosave into the last run's slot.
+func reset_active_run() -> void:
+	_active_slot = -1
+	_roster_stats.clear()
+	_roster_names.clear()
 
 
 # ── Listing (phase 1: debug console only, phase 2: the real slot picker) ───────

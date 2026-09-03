@@ -65,6 +65,12 @@ var has_fish_finder: bool = false
 ## will want it), but it's real crew state GDD calls out explicitly.
 var player_count_multiplier: float = 1.0
 
+## GDD Game Modes: "the mode is a flag on the save." &"quota" (default) or
+## &"casual" -- gates the quota fail check in _end_round below, nothing
+## else reads this. Set once at run creation (reset_for_new_run) or
+## restored verbatim on load (restore_crew_state), never changes mid-run.
+var game_mode: StringName = &"quota"
+
 var _time_remaining: float = 0.0
 var _round_active: bool = false  ## host-only: is the round timer actually ticking
 var _day_earned_so_far: int = 0  ## sum of each round's sale within the current day, reported in day_summary
@@ -81,13 +87,14 @@ func _process(delta: float) -> void:
 
 ## Called by NetworkManager whenever a NEW run starts (host_lobby or joining
 ## a lobby) so a previous run's state doesn't leak into the next one.
-func reset_for_new_run() -> void:
+func reset_for_new_run(mode: StringName = &"quota") -> void:
 	day_number = 1
 	round_number = 1
 	total_money_earned = 0
 	player_count_multiplier = _compute_player_count_multiplier()
 	current_quota = _compute_day1_quota()
 	has_fish_finder = false
+	game_mode = mode
 	_round_active = false
 	_day_earned_so_far = 0
 
@@ -100,19 +107,20 @@ func reset_for_new_run() -> void:
 ## from _notify_round_started -- that one means "a round with a real timer
 ## is starting," which isn't true here (a load happens sitting in the
 ## lobby, round_number/round timer untouched).
-func restore_crew_state(day: int, quota: int, money: int, fish_finder: bool, multiplier: float) -> void:
+func restore_crew_state(day: int, quota: int, money: int, fish_finder: bool, multiplier: float, mode: StringName) -> void:
 	if not multiplayer.is_server():
 		return
-	_notify_crew_state_restored.rpc(day, quota, money, fish_finder, multiplier)
+	_notify_crew_state_restored.rpc(day, quota, money, fish_finder, multiplier, mode)
 
 
 @rpc("authority", "call_local", "reliable")
-func _notify_crew_state_restored(day: int, quota: int, money: int, fish_finder: bool, multiplier: float) -> void:
+func _notify_crew_state_restored(day: int, quota: int, money: int, fish_finder: bool, multiplier: float, mode: StringName) -> void:
 	day_number = day
 	current_quota = quota
 	total_money_earned = money
 	has_fish_finder = fish_finder
 	player_count_multiplier = multiplier
+	game_mode = mode
 
 
 ## Host-only. Called once the lake finishes loading for a round.
@@ -159,7 +167,11 @@ func _end_round() -> void:
 
 	var day_earned := _day_earned_so_far
 	_day_earned_so_far = 0
-	var passed := total_money_earned >= current_quota
+	# GDD Game Modes: casual is "no quota, no fail state" -- the day always
+	# passes, but quota still escalates below off the same surplus math (0
+	# surplus if it wasn't actually cleared), so casual still has a sense of
+	# progression without ever being able to end the run.
+	var passed := game_mode == &"casual" or total_money_earned >= current_quota
 	var finished_day := day_number
 
 	_notify_day_summary.rpc(finished_day, day_earned, total_money_earned, current_quota, passed)

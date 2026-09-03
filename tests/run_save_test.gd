@@ -38,6 +38,13 @@ func _on_local_player_spawned(player1: Player) -> void:
 		return
 	print("Host Steam ID resolved: %d" % host_steam_id)
 
+	# user://saves/ persists across test runs on the same machine -- wipe
+	# every slot first so a leftover file from a previous run (e.g. one
+	# left mid-way through the type/version-mismatch checks below) can
+	# never collide with this run's own assertions.
+	for slot in range(RunSaveManager.SLOT_COUNT):
+		RunSaveManager.delete_slot(slot)
+
 	const SLOT := 0
 
 	# ── Save: real crew state + the host's real (mutated) PlayerStats. ──
@@ -153,6 +160,46 @@ func _on_local_player_spawned(player1: Player) -> void:
 		return
 	print("A stranger joining doesn't inherit anyone's saved stats -- starts bare, per GDD.")
 
+	# ── start_new_run / delete_slot (phase 2 backend -- no picker UI in a headless test). ──
+	const NEW_SLOT := 1
+	var occupied_result: Dictionary = RunSaveManager.start_new_run(SLOT, &"quota")
+	if occupied_result["success"] or occupied_result["reason"] != &"slot_occupied":
+		print("FAIL: start_new_run on an occupied slot should be refused as slot_occupied, got %s" % [occupied_result])
+		get_tree().quit(1)
+		return
+	print("start_new_run correctly refused an already-occupied slot.")
+
+	var new_run_result: Dictionary = RunSaveManager.start_new_run(NEW_SLOT, &"casual")
+	if not new_run_result["success"]:
+		print("FAIL: start_new_run on an empty slot failed unexpectedly: %s" % new_run_result["reason"])
+		get_tree().quit(1)
+		return
+	if RunState.day_number != 1 or RunState.game_mode != &"casual":
+		print("FAIL: start_new_run should reset RunState fresh with the chosen mode, got day=%d mode=%s" %
+			[RunState.day_number, RunState.game_mode])
+		get_tree().quit(1)
+		return
+	var new_save := RunSaveManager.peek_slot(NEW_SLOT)
+	if new_save == null or new_save.game_mode != &"casual" or new_save.is_coop != true:
+		print("FAIL: the new run's own save file doesn't reflect what was just created: %s" % [new_save])
+		get_tree().quit(1)
+		return
+	print("start_new_run correctly created slot %d as a fresh casual co-op run." % NEW_SLOT)
+
+	var delete_result: Dictionary = RunSaveManager.delete_slot(NEW_SLOT)
+	if not delete_result["success"] or RunSaveManager.peek_slot(NEW_SLOT) != null:
+		print("FAIL: delete_slot didn't actually remove slot %d" % NEW_SLOT)
+		get_tree().quit(1)
+		return
+	print("delete_slot correctly removed slot %d." % NEW_SLOT)
+
+	var delete_empty_result: Dictionary = RunSaveManager.delete_slot(NEW_SLOT)
+	if not delete_empty_result["success"]:
+		print("FAIL: delete_slot on an already-empty slot should still succeed as a no-op, got %s" % [delete_empty_result])
+		get_tree().quit(1)
+		return
+	print("delete_slot on an already-empty slot is a harmless no-op.")
+
 	# ── Version mismatch: hand-corrupt the file's version, confirm refusal. ──
 	var stale := ResourceLoader.load(RunSaveManager._path_for(SLOT), "RunSave", ResourceLoader.CACHE_MODE_IGNORE) as RunSave
 	stale.save_version = RunSave.CURRENT_VERSION + 1
@@ -188,6 +235,54 @@ func _on_local_player_spawned(player1: Player) -> void:
 		get_tree().quit(1)
 		return
 	print("Save and load both correctly refused mid-round.")
+
+	# ── Casual mode: quota fail check skipped entirely, day always "passes." ──
+	RunState.game_mode = &"casual"
+	RunState.total_money_earned = 0
+	RunState.current_quota = 999999  # impossible to hit this round
+
+	# A plain local bool captured by a lambda is captured BY VALUE in
+	# GDScript (a snapshot at lambda-creation time, not a live reference) --
+	# mutating it inside the callback would silently no-op on the outer
+	# variable. A Dictionary is a reference type, so both the callback and
+	# the checks below share the same live object.
+	var casual_result := {"run_over": false, "day_seen": false, "day_passed": false}
+	var on_casual_run_over := func(_final_day, _final_money):
+		casual_result["run_over"] = true
+	var on_casual_day_summary := func(_d, _e, _t, _q, passed):
+		casual_result["day_seen"] = true
+		casual_result["day_passed"] = passed
+	RunState.run_over.connect(on_casual_run_over)
+	RunState.day_summary.connect(on_casual_day_summary)
+
+	var day_before := RunState.day_number
+	await RunState.debug_skip_day()
+
+	# debug_skip_day()'s own trailing debug_skip_round() call (for the
+	# day's last round) is fire-and-forget -- it doesn't await that round's
+	# actual end, fine for a playtest keypress but not for an assertion
+	# right after. Poll for day_summary instead of a single frame.
+	var summary_waited := 0.0
+	while not casual_result["day_seen"] and summary_waited < 3.0:
+		await get_tree().process_frame
+		summary_waited += get_process_delta_time()
+
+	RunState.run_over.disconnect(on_casual_run_over)
+	RunState.day_summary.disconnect(on_casual_day_summary)
+
+	if casual_result["run_over"]:
+		print("FAIL: casual mode should never trigger run_over, even far under quota")
+		get_tree().quit(1)
+		return
+	if not casual_result["day_seen"] or not casual_result["day_passed"]:
+		print("FAIL: casual mode's day should always report passed=true, got %s" % [casual_result])
+		get_tree().quit(1)
+		return
+	if RunState.day_number != day_before + 1:
+		print("FAIL: casual mode should still advance the day like a normal pass, day stayed at %d" % RunState.day_number)
+		get_tree().quit(1)
+		return
+	print("Casual mode correctly skipped the quota fail check and advanced the day anyway.")
 
 	print("--- Run save test PASSED ---")
 	get_tree().quit()

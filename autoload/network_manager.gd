@@ -104,6 +104,7 @@ func disconnect_from_lobby() -> void:
 	_round_started = false
 
 	RunState.reset_for_new_run()
+	RunSaveManager.reset_active_run()
 
 
 ## Frees every currently-spawned Player node. MultiplayerSpawner only ever

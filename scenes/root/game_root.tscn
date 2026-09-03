@@ -12,6 +12,7 @@
 [ext_resource type="PackedScene" path="res://ui/debug_console.tscn" id="11_debugconsole"]
 [ext_resource type="PackedScene" path="res://ui/crosshair.tscn" id="12_crosshair"]
 [ext_resource type="PackedScene" path="res://ui/shop_display.tscn" id="13_shopdisplay"]
+[ext_resource type="PackedScene" path="res://ui/run_picker.tscn" id="14_runpicker"]
 
 [node name="GameRoot" type="Node" unique_id=1721289612]
 
@@ -51,3 +52,5 @@ spawn_limit = 4
 [node name="Crosshair" parent="UILayer" unique_id=821550873 instance=ExtResource("12_crosshair")]
 
 [node name="ShopDisplay" parent="UILayer" instance=ExtResource("13_shopdisplay")]
+
+[node name="RunPicker" parent="UILayer" instance=ExtResource("14_runpicker")]
